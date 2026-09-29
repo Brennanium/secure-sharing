@@ -1,0 +1,110 @@
+import Foundation
+import SecureSharing
+import Security
+import Testing
+
+@Suite("Signed Keychain Integration")
+struct KeychainIntegrationTests {
+  private let service = "com.brennanium.secure-sharing.integration-tests"
+
+  @Test("A generic-password item can be created, updated, inspected, and deleted")
+  func genericPasswordRoundTrip() throws {
+    let group = try accessGroup()
+    let account = UUID().uuidString
+    let item = KeychainStorageItem(
+      service: service,
+      account: account,
+      accessGroup: group,
+      accessibility: .whenUnlockedThisDeviceOnly
+    )
+    let client = KeychainStorageClient.liveValue
+    defer { try? client.delete(item) }
+
+    #expect(try client.read(item) == nil)
+    try client.write(Data("first".utf8), item)
+    #expect(try client.read(item) == Data("first".utf8))
+
+    let differentCreationPolicy = KeychainStorageItem(
+      service: service,
+      account: account,
+      accessGroup: group,
+      accessibility: .afterFirstUnlockThisDeviceOnly
+    )
+    try client.write(Data("second".utf8), differentCreationPolicy)
+    #expect(try client.read(item) == Data("second".utf8))
+
+    let attributes = try itemAttributes(service: service, account: account, accessGroup: group)
+    #expect(attributes[kSecAttrAccessGroup as String] as? String == group)
+    #expect(
+      attributes[kSecAttrAccessible as String] as? String
+        == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+    )
+
+    try client.delete(item)
+    #expect(try client.read(item) == nil)
+  }
+
+  @Test("An encryption key is created once and reloaded by a new client")
+  func encryptionKeyPersistsWithoutCaching() throws {
+    let group = try accessGroup()
+    let account = UUID().uuidString
+    let keyStore = SecureKeyStoreClient.keychain(
+      service: service,
+      account: account,
+      accessGroup: group,
+      accessibility: .whenUnlockedThisDeviceOnly
+    )
+    let item = KeychainStorageItem(service: service, account: account, accessGroup: group)
+    defer { try? KeychainStorageClient.liveValue.delete(item) }
+
+    #expect(throws: SecureStorageError.keyUnavailable) {
+      try keyStore.loadSymmetricKey()
+    }
+    let created = try keyStore.loadOrCreateSymmetricKey()
+    let reloaded = try SecureKeyStoreClient.keychain(
+      service: service, account: account, accessGroup: group
+    ).loadSymmetricKey()
+    #expect(created.withUnsafeBytes { Data($0) } == reloaded.withUnsafeBytes { Data($0) })
+
+    let attributes = try itemAttributes(service: service, account: account, accessGroup: group)
+    #expect(attributes[kSecAttrAccessGroup as String] as? String == group)
+    #expect(
+      attributes[kSecAttrAccessible as String] as? String
+        == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+    )
+
+    try KeychainStorageClient.liveValue.delete(item)
+    #expect(throws: SecureStorageError.keyUnavailable) {
+      try keyStore.loadSymmetricKey()
+    }
+  }
+
+  private func accessGroup() throws -> String {
+    let group = try #require(
+      Bundle.main.object(forInfoDictionaryKey: "SecureSharingTestAccessGroup") as? String
+    )
+    try #require(
+      group != "com.brennanium.SecureSharingTestHost",
+      "Select an Apple Development team so the host's access group receives a Team ID prefix."
+    )
+    return group
+  }
+
+  private func itemAttributes(service: String, account: String, accessGroup: String) throws
+    -> [String: Any]
+  {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecAttrAccessGroup as String: accessGroup,
+      kSecUseDataProtectionKeychain as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+      kSecReturnAttributes as String: true,
+    ]
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    #expect(status == errSecSuccess)
+    return try #require(result as? [String: Any])
+  }
+}

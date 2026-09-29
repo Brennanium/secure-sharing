@@ -1,0 +1,122 @@
+{
+  "default-configuration": "Debug",
+  "configurations": [
+    "Debug",
+    "Release",
+  ],
+  "localizations": {
+    "development": "en",
+  },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "..",
+    },
+  ],
+  "files": [
+    {
+      "kind": "group",
+      "path": "IntegrationHost",
+      "children": [
+        { "path": "TestHostApp.swift", "target-membership": [ "SecureSharingTestHost/compile-sources" ] },
+        { "path": "KeychainIntegrationTests.swift", "target-membership": [ "SecureSharingIntegrationTests/compile-sources" ] },
+        { "path": "TestHost.entitlements" },
+        { "path": "TestHost-Info.plist" },
+      ],
+    }, {
+      "kind": "group",
+      "path": "Products",
+      "children": [
+        { "path": "<PRODUCTS>/SecureSharingTestHost.app", "id": "A00000000000000000000014", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/SecureSharingIntegrationTests.xctest", "id": "A00000000000000000000015", "type": "wrapper.cfbundle", "index": false },
+      ],
+    },
+  ],
+  "targets": [
+    {
+      "name": "SecureSharingTestHost",
+      "id": "A00000000000000000000031",
+      "product": "Products/SecureSharingTestHost.app",
+      "product-type": "application",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "package-product-members": [
+        {
+          "product-name": "SecureSharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/TestHost.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "ENABLE_APP_SANDBOX": "YES",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "IntegrationHost/TestHost-Info.plist",
+        "LD_RUNPATH_SEARCH_PATHS": [
+          "$(inherited)",
+          "@executable_path/../Frameworks",
+        ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingTestHost",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SUPPORTED_PLATFORMS": "macosx",
+      },
+    }, {
+      "name": "SecureSharingIntegrationTests",
+      "id": "A00000000000000000000034",
+      "product": "Products/SecureSharingIntegrationTests.xctest",
+      "product-type": "bundle.unit-test",
+      "test-host-target": "SecureSharingTestHost",
+      "dependencies": [
+        "SecureSharingTestHost",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "package-product-members": [
+        {
+          "product-name": "SecureSharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "BUNDLE_LOADER": "$(TEST_HOST)",
+        "CODE_SIGN_IDENTITY": "-",
+        "CODE_SIGN_STYLE": "Automatic",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "LD_RUNPATH_SEARCH_PATHS": [
+          "$(inherited)",
+          "@loader_path/../Frameworks",
+          "@executable_path/../Frameworks",
+        ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingIntegrationTests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SUPPORTED_PLATFORMS": "macosx",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/SecureSharingTestHost.app/Contents/MacOS/SecureSharingTestHost",
+      },
+    },
+  ],
+  "build-settings": {
+    "CLANG_ENABLE_MODULES": "YES",
+    "COPY_PHASE_STRIP[config=Debug]": "NO",
+    "COPY_PHASE_STRIP[config=Release]": "YES",
+    "DEBUG_INFORMATION_FORMAT[config=Debug]": "dwarf",
+    "DEBUG_INFORMATION_FORMAT[config=Release]": "dwarf-with-dsym",
+    "ENABLE_TESTABILITY[config=Debug]": "YES",
+    "MACOSX_DEPLOYMENT_TARGET": "14.0",
+    "ONLY_ACTIVE_ARCH[config=Debug]": "YES",
+    "SDKROOT": "macosx",
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug]": "DEBUG $(inherited)",
+    "SWIFT_COMPILATION_MODE[config=Release]": "wholemodule",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Debug]": "-Onone",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Release]": "-O",
+    "SWIFT_VERSION": "6.0",
+  },
+  "last-upgrade": "27.1",
+}
