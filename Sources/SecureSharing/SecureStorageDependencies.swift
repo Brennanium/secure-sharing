@@ -95,6 +95,9 @@ public struct SecureKeyStoreClient: Sendable {
 }
 
 /// An encryption strategy for secure app storage.
+///
+/// Use ``keychain(service:account:accessGroup:accessibility:)`` for a Keychain-backed key, or
+/// ``CryptoKit/AES/GCM/secureAppStorage(keyStore:)`` for a custom symmetric-key source.
 public struct SecureCryptoClient: Hashable, Sendable {
   private let identity: AnyHashableSendable
   let isConfigured: Bool
@@ -165,6 +168,7 @@ public struct SecureCryptoClient: Hashable, Sendable {
   }
 
   /// Uses a replaceable symmetric-key store, primarily for custom key sources and tests.
+  @_documentation(visibility: private)
   public static func aesGCM(keyStore: SecureKeyStoreClient) -> Self {
     AES.GCM.secureAppStorage(keyStore: keyStore)
   }
@@ -306,11 +310,19 @@ private enum ProtectedDataStatus {
 }
 
 extension DependencyValues {
+  /// The default encryption client used by `secureAppStorage` keys.
+  ///
+  /// Set this in `prepareDependencies` before creating secure keys. In a live app, a missing
+  /// client reports an issue and causes loads and saves to fail. See <doc:GettingStarted>.
   public var secureAppStorageCrypto: SecureCryptoClient {
     get { self[SecureAppStorageCryptoKey.self] }
     set { self[SecureAppStorageCryptoKey.self] = newValue }
   }
 
+  /// Protected-data readiness used by `secureAppStorage` keys.
+  ///
+  /// Override this dependency in tests to simulate unavailable storage and recovery.
+  /// See <doc:AvailabilityAndFailures>.
   public var secureStorageStatus: SecureStorageStatusClient {
     get { self[SecureStorageStatusClient.self] }
     set { self[SecureStorageStatusClient.self] = newValue }

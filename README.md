@@ -4,11 +4,15 @@ Secure persistence for [Sharing] with Keychain and encrypted `UserDefaults` stor
 
 [Sharing]: https://github.com/pointfreeco/swift-sharing
 
+For setup and behavior details, see the [DocC guides](Sources/SecureSharing/Documentation.docc/SecureSharing.md).
+
 ## Overview
 
 SecureSharing adds two persistence strategies to Sharing's `@Shared` property wrapper. Use
 `keychainStorage` to keep a small value in Keychain, or `secureAppStorage` to keep an encrypted value
 in `UserDefaults` while its encryption key stays in Keychain.
+Define [type-safe secure keys](Sources/SecureSharing/Documentation.docc/Articles/TypeSafeSecureKeys.md)
+to keep storage identifiers and value types together.
 
 ### Keychain storage
 

@@ -6,7 +6,7 @@ import Security
 import Testing
 @testable import SecureSharing
 
-@Suite("Keychain Storage Key", .dependency(\.keychainStorageClient, .testValue))
+@Suite("Keychain Storage Key", .dependencies)
 struct KeychainStorageKeyTests {
   @Dependency(\.keychainStorageClient) var client
 
@@ -25,6 +25,38 @@ struct KeychainStorageKeyTests {
     let storedData = try client.read(item)
     let data = try #require(storedData)
     #expect(try JSONDecoder().decode(Int.self, from: data) == 43)
+  }
+
+  @Test("A type-safe default is not stored until the value changes")
+  func typeSafeDefault() async throws {
+    let item = KeychainStorageItem(
+      service: service, account: "default-count", accessGroup: accessGroup)
+    @Shared(.defaultCount) var count
+
+    #expect(count == 42)
+    #expect(try client.read(item) == nil)
+
+    try await $count.load()
+    #expect(count == 42)
+    #expect(try client.read(item) == nil)
+
+    $count.withLock { $0 = 43 }
+    let data = try #require(try client.read(item))
+    #expect(try JSONDecoder().decode(Int.self, from: data) == 43)
+
+    try client.delete(item)
+    try await $count.load()
+    #expect(count == 43)
+  }
+
+  @Test("A stored value takes precedence over a type-safe default")
+  func storedValueOverridesTypeSafeDefault() throws {
+    let item = KeychainStorageItem(
+      service: service, account: "default-count", accessGroup: accessGroup)
+    try client.write(JSONEncoder().encode(99), item)
+
+    @Shared(.defaultCount) var count
+    #expect(count == 99)
   }
 
   @Test("Empty Keychain identifiers fail before accessing storage")
@@ -258,5 +290,15 @@ struct KeychainStorageKeyTests {
     #expect(otherError == .keychainFailure(status: errSecNotAvailable))
     #expect(otherError.keychainStatus == errSecNotAvailable)
     #expect(SecureStorageError.decodingFailed.keychainStatus == nil)
+  }
+}
+
+extension SharedKey where Self == KeychainStorageKey<Int>.Default {
+  fileprivate static var defaultCount: Self {
+    Self[
+      .keychainStorage(
+        "default-count", service: "SecureSharing.tests", accessGroup: "test.group"),
+      default: 42
+    ]
   }
 }

@@ -3,6 +3,10 @@ import Foundation
 import Sharing
 
 extension SharedReaderKey {
+  /// Creates a key for a JSON-encoded value stored in a generic-password Keychain item.
+  ///
+  /// The access group must be authorized by the target's signed entitlements. See
+  /// <doc:KeychainStorage> for availability and cross-process reload behavior.
   public static func keychainStorage<Value: Codable & Sendable>(
     _ account: String,
     service: String,
@@ -24,6 +28,7 @@ extension SharedReaderKey {
 ///
 /// Changing the value's encoding requires an explicit migration of the stored item.
 /// Keychain reads and writes are synchronous and may block the calling thread.
+/// See <doc:KeychainStorage> for setup and cross-process behavior.
 public struct KeychainStorageKey<Value: Codable & Sendable>: SharedKey {
   private let item: KeychainStorageItem
   private let client: KeychainStorageClient

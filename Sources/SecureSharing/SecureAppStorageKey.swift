@@ -170,9 +170,12 @@ extension SharedReaderKey {
 
 private let securePrefix = "secure_"
 
-/// Persists encrypted values in `UserDefaults`.
+/// A Sharing key that persists encrypted values in `UserDefaults`.
 ///
+/// Configure `secureAppStorageCrypto` before using this key, or pass `crypto:` to override it for
+/// one key.
 /// Loads and saves run synchronously and may block the calling thread.
+/// See <doc:GettingStarted> for setup and <doc:SecureAppStorage> for storage behavior.
 public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   private let lookup: any Lookup<Value>
   private let key: String

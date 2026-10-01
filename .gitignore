@@ -1,4 +1,6 @@
 .build/
+.docc-build/
+*.doccarchive/
 .swiftpm/
 .DS_Store
 Package.resolved

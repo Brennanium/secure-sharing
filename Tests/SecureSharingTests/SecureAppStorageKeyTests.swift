@@ -10,6 +10,30 @@ struct SecureAppStorageKeyTests {
   @Dependency(\.defaultAppStorage) var store
   @Dependency(\.secureAppStorageCrypto) private var secureCrypto
 
+  @Test("A type-safe default does not write to UserDefaults during load")
+  func typeSafeDefault() throws {
+    @Shared(.defaultPrivateNotes) var privateNotes
+
+    #expect(privateNotes.isEmpty)
+    #expect(store.data(forKey: secureStoreKey("default-private-notes")) == nil)
+
+    $privateNotes.withLock { $0 = ["Saved"] }
+    #expect(
+      try decryptedStoreValue(
+        [String].self, key: "default-private-notes", store: store, crypto: secureCrypto)
+        == ["Saved"]
+    )
+  }
+
+  @Test("Encrypted data takes precedence over a type-safe default")
+  func storedValueOverridesTypeSafeDefault() throws {
+    try writeEncryptedStoreValue(
+      ["Stored"], key: "default-private-notes", store: store, crypto: secureCrypto)
+
+    @Shared(.defaultPrivateNotes) var privateNotes
+    #expect(privateNotes == ["Stored"])
+  }
+
   @Test func bool() throws {
     @Shared(.secureAppStorage("bool")) var bool = true
     #expect(store.data(forKey: secureStoreKey("bool")) == nil)
@@ -599,6 +623,12 @@ struct SecureAppStorageKeyTests {
           == 43
       )
     }
+  }
+}
+
+extension SharedKey where Self == SecureAppStorageKey<[String]>.Default {
+  fileprivate static var defaultPrivateNotes: Self {
+    Self[.secureAppStorage("default-private-notes"), default: []]
   }
 }
 

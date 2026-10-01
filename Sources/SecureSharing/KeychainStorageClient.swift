@@ -42,6 +42,8 @@ public struct KeychainStorageItem: Hashable, Sendable {
 }
 
 /// Replaceable Keychain operations used by `KeychainStorageKey`.
+///
+/// Tests use ``testValue`` automatically. Override the dependency to simulate specific responses.
 public struct KeychainStorageClient: Sendable {
   let identity: UUID
   public var read: @Sendable (KeychainStorageItem) throws -> Data?
@@ -114,6 +116,7 @@ extension KeychainStorageClient: DependencyKey {
     }
   )
 
+  /// An in-memory item store for tests; it does not exercise signed Keychain access.
   public static var testValue: Self {
     let items = Locked<[KeychainStorageItem.Identity: Data]>([:])
     return Self(
@@ -125,6 +128,10 @@ extension KeychainStorageClient: DependencyKey {
 }
 
 extension DependencyValues {
+  /// The Keychain operations used by ``KeychainStorageKey``.
+  ///
+  /// Tests use an in-memory client by default. Live use requires a signed target with an
+  /// authorized access group. See <doc:KeychainStorage>.
   public var keychainStorageClient: KeychainStorageClient {
     get { self[KeychainStorageClient.self] }
     set { self[KeychainStorageClient.self] = newValue }
