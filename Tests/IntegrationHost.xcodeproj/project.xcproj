@@ -18,10 +18,71 @@
       "kind": "group",
       "path": "IntegrationHost",
       "children": [
-        { "path": "TestHostApp.swift", "target-membership": [ "SecureSharingTestHost/compile-sources" ] },
-        { "path": "KeychainIntegrationTests.swift", "target-membership": [ "SecureSharingIntegrationTests/compile-sources" ] },
-        { "path": "TestHost.entitlements" },
-        { "path": "TestHost-Info.plist" },
+        {
+          "kind": "group",
+          "path": "macOS",
+          "children": [
+            {
+              "kind": "group",
+              "path": "App",
+              "children": [
+                { "path": "TestHostApp.swift", "target-membership": [ "SecureSharingTestHost/compile-sources" ] },
+                { "path": "TestHost.entitlements" },
+                { "path": "TestHost-Info.plist" },
+              ],
+            }, {
+              "kind": "group",
+              "path": "XPC",
+              "children": [
+                { "path": "KeychainProbeProtocol.swift", "target-membership": [ "SecureSharingIntegrationTests/compile-sources", "KeychainProbeService/compile-sources" ] },
+                { "path": "KeychainProbeService.swift", "target-membership": [ "KeychainProbeService/compile-sources" ] },
+                { "path": "KeychainProbe.entitlements" },
+                { "path": "KeychainProbe-Info.plist" },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Tests",
+              "children": [
+                { "path": "KeychainIntegrationTests.swift", "target-membership": [ "SecureSharingIntegrationTests/compile-sources" ] },
+              ],
+            },
+          ],
+        },
+        {
+          "kind": "group",
+          "path": "iOS",
+          "children": [
+            {
+              "kind": "group",
+              "path": "App",
+              "children": [
+                { "path": "TestHostApp.swift", "target-membership": [ "SecureSharingIOSTestHost/compile-sources" ] },
+                { "path": "TestHost-Info.plist" },
+                { "path": "TestHost.entitlements" },
+              ],
+            }, {
+              "kind": "group",
+              "path": "ActionExtension",
+              "children": [
+                { "path": "ActionViewController.swift", "target-membership": [ "SecureSharingKeychainAction/compile-sources" ] },
+                { "path": "KeychainAction-Info.plist" },
+                { "path": "KeychainAction.entitlements" },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Shared",
+              "children": [
+                { "path": "KeychainFixture.swift", "target-membership": [ "SecureSharingIOSTestHost/compile-sources", "SecureSharingKeychainAction/compile-sources", "SecureSharingIOSIntegrationTests/compile-sources" ] },
+              ],
+            }, {
+              "kind": "group",
+              "path": "Tests",
+              "children": [
+                { "path": "KeychainIntegrationTests.swift", "target-membership": [ "SecureSharingIOSIntegrationTests/compile-sources" ] },
+              ],
+            },
+          ],
+        },
       ],
     }, {
       "kind": "group",
@@ -29,8 +90,12 @@
       "children": [
         { "path": "<PRODUCTS>/SecureSharingTestHost.app", "id": "A00000000000000000000014", "type": "wrapper.application", "index": false },
         { "path": "<PRODUCTS>/SecureSharingIntegrationTests.xctest", "id": "A00000000000000000000015", "type": "wrapper.cfbundle", "index": false },
+        { "path": "<PRODUCTS>/KeychainProbeService.xpc", "id": "31A17CEC552B4EFBA1141305", "type": "wrapper.xpc-service", "index": false, "target-membership": [ { "build-phase": "SecureSharingTestHost/copy/Embed XPC Services", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/SecureSharingIOSTestHost.app", "id": "E4B7C89511A84D0087844A01", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/SecureSharingKeychainAction.appex", "id": "E4B7C89511A84D0087844A02", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "SecureSharingIOSTestHost/copy/Embed App Extensions", "header-preservation": "remove-on-copy" } ] },
+        { "path": "<PRODUCTS>/SecureSharingIOSIntegrationTests.xctest", "id": "E4B7C89511A84D0087844A03", "type": "wrapper.cfbundle", "index": false },
       ],
-    },
+    }
   ],
   "targets": [
     {
@@ -38,6 +103,47 @@
       "id": "A00000000000000000000031",
       "product": "Products/SecureSharingTestHost.app",
       "product-type": "application",
+      "dependencies": [
+        "KeychainProbeService",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+        {
+          "kind": "copy",
+          "name": "Embed XPC Services",
+          "bundle-base-path": "build-products-directory",
+          "relative-path": "$(CONTENTS_FOLDER_PATH)/XPCServices",
+        },
+      ],
+      "package-product-members": [
+        {
+          "product-name": "SecureSharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/macOS/App/TestHost.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "ENABLE_APP_SANDBOX": "YES",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "IntegrationHost/macOS/App/TestHost-Info.plist",
+        "LD_RUNPATH_SEARCH_PATHS": [
+          "$(inherited)",
+          "@executable_path/../Frameworks",
+        ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingTestHost",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SUPPORTED_PLATFORMS": "macosx",
+      },
+    }, {
+      "name": "KeychainProbeService",
+      "id": "B0D8C16CE5EB46EA8678A932",
+      "product": "Products/KeychainProbeService.xpc",
+      "product-type": "xpc-service",
       "build-phases": [
         "compile-sources",
         "frameworks",
@@ -48,21 +154,27 @@
           "product-name": "SecureSharing",
           "build-phase": { "build-phase": "frameworks" },
         },
+        {
+          "product-name": "Sharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
       ],
       "build-settings": {
-        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/TestHost.entitlements",
+        "APPLICATION_EXTENSION_API_ONLY": "YES",
+        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/macOS/XPC/KeychainProbe.entitlements",
         "CODE_SIGN_IDENTITY": "Apple Development",
         "CODE_SIGN_STYLE": "Automatic",
         "DEVELOPMENT_TEAM": "XH437MA6D9",
         "ENABLE_APP_SANDBOX": "YES",
         "GENERATE_INFOPLIST_FILE": "NO",
-        "INFOPLIST_FILE": "IntegrationHost/TestHost-Info.plist",
+        "INFOPLIST_FILE": "IntegrationHost/macOS/XPC/KeychainProbe-Info.plist",
         "LD_RUNPATH_SEARCH_PATHS": [
           "$(inherited)",
           "@executable_path/../Frameworks",
         ],
-        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingTestHost",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingTestHost.KeychainProbeService",
         "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SKIP_INSTALL": "YES",
         "SUPPORTED_PLATFORMS": "macosx",
       },
     }, {
@@ -84,6 +196,10 @@
           "product-name": "SecureSharing",
           "build-phase": { "build-phase": "frameworks" },
         },
+        {
+          "product-name": "ConcurrencyExtras",
+          "build-phase": { "build-phase": "frameworks" },
+        },
       ],
       "build-settings": {
         "BUNDLE_LOADER": "$(TEST_HOST)",
@@ -99,6 +215,97 @@
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "SUPPORTED_PLATFORMS": "macosx",
         "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/SecureSharingTestHost.app/Contents/MacOS/SecureSharingTestHost",
+      },
+    }, {
+      "name": "SecureSharingIOSTestHost",
+      "id": "E4B7C89511A84D0087844A11",
+      "product": "Products/SecureSharingIOSTestHost.app",
+      "product-type": "application",
+      "dependencies": [
+        "SecureSharingKeychainAction",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+        {
+          "kind": "copy",
+          "name": "Embed App Extensions",
+          "bundle-base-path": "build-products-directory",
+          "relative-path": "$(PLUGINS_FOLDER_PATH)",
+        },
+      ],
+      "package-product-members": [
+        { "product-name": "SecureSharing", "build-phase": { "build-phase": "frameworks" } },
+        { "product-name": "Sharing", "build-phase": { "build-phase": "frameworks" } },
+      ],
+      "build-settings": {
+        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/iOS/App/TestHost.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "IntegrationHost/iOS/App/TestHost-Info.plist",
+        "IPHONEOS_DEPLOYMENT_TARGET": "16.0",
+        "LD_RUNPATH_SEARCH_PATHS": [ "$(inherited)", "@executable_path/Frameworks" ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingIOSTestHost",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "iphoneos",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+      },
+    }, {
+      "name": "SecureSharingKeychainAction",
+      "id": "E4B7C89511A84D0087844A12",
+      "product": "Products/SecureSharingKeychainAction.appex",
+      "product-type": "app-extension",
+      "build-phases": [ "compile-sources", "frameworks", "resources" ],
+      "package-product-members": [
+        { "product-name": "SecureSharing", "build-phase": { "build-phase": "frameworks" } },
+        { "product-name": "Sharing", "build-phase": { "build-phase": "frameworks" } },
+      ],
+      "build-settings": {
+        "APPLICATION_EXTENSION_API_ONLY": "YES",
+        "CODE_SIGN_ENTITLEMENTS": "IntegrationHost/iOS/ActionExtension/KeychainAction.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "IntegrationHost/iOS/ActionExtension/KeychainAction-Info.plist",
+        "IPHONEOS_DEPLOYMENT_TARGET": "16.0",
+        "LD_RUNPATH_SEARCH_PATHS": [ "$(inherited)", "@executable_path/Frameworks" ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingIOSTestHost.KeychainAction",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "iphoneos",
+        "SKIP_INSTALL": "YES",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+      },
+    }, {
+      "name": "SecureSharingIOSIntegrationTests",
+      "id": "E4B7C89511A84D0087844A13",
+      "product": "Products/SecureSharingIOSIntegrationTests.xctest",
+      "product-type": "bundle.unit-test",
+      "test-host-target": "SecureSharingIOSTestHost",
+      "dependencies": [ "SecureSharingIOSTestHost" ],
+      "build-phases": [ "compile-sources", "frameworks", "resources" ],
+      "package-product-members": [
+        { "product-name": "SecureSharing", "build-phase": { "build-phase": "frameworks" } },
+      ],
+      "build-settings": {
+        "BUNDLE_LOADER": "$(TEST_HOST)",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+        "LD_RUNPATH_SEARCH_PATHS": [ "$(inherited)", "@loader_path/Frameworks", "@executable_path/Frameworks" ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingIOSIntegrationTests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "iphoneos",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/SecureSharingIOSTestHost.app/SecureSharingIOSTestHost",
       },
     },
   ],
