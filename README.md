@@ -67,6 +67,11 @@ accessibility also applies only when it is first created.
 Run the dependency-injected tests with `swift test`. Signed cross-process tests live in
 `Tests/IntegrationHost.xcodeproj`; see the [iOS test steps](Tests/IntegrationHost/iOS/README.md).
 
+## Examples
+
+The [case-study app](Examples/README.md) demonstrates encrypted notes and a Keychain-backed
+authenticated background refresh.
+
 ## Alternatives
 
 There are other libraries for working with Keychain directly. Unlike SecureSharing, they do not

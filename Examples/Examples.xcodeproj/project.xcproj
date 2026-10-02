@@ -1,0 +1,134 @@
+{
+  "default-configuration": "Debug",
+  "configurations": [
+    "Debug",
+    "Release",
+  ],
+  "localizations": {
+    "development": "en",
+  },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "..",
+    },
+  ],
+  "files": [
+    {
+      "kind": "group",
+      "path": "CaseStudies",
+      "children": [
+        { "path": "CaseStudiesApp.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "EncryptedNoteView.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "AuthenticatedRefresh.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "AuthenticatedRefreshModel.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "CaseStudyKeys.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "DemoAuthClient.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "AuthenticatedRefreshView.swift", "target-membership": [ "CaseStudies/compile-sources" ] },
+        { "path": "CaseStudies-Info.plist" },
+        { "path": "CaseStudies.entitlements" },
+      ],
+    }, {
+      "kind": "group",
+      "path": "CaseStudiesTests",
+      "children": [
+        { "path": "AuthenticatedRefreshModelTests.swift", "target-membership": [ "CaseStudiesTests/compile-sources" ] },
+      ],
+    }, {
+      "kind": "group",
+      "path": "Products",
+      "children": [
+        { "path": "<PRODUCTS>/CaseStudies.app", "id": "A6318CDBE1D147E98F812A01", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/CaseStudiesTests.xctest", "id": "A6318CDBE1D147E98F812A02", "type": "wrapper.cfbundle", "index": false },
+      ],
+    },
+  ],
+  "targets": [
+    {
+      "name": "CaseStudies",
+      "id": "A6318CDBE1D147E98F812A11",
+      "product": "Products/CaseStudies.app",
+      "product-type": "application",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+        "resources",
+      ],
+      "package-product-members": [
+        {
+          "product-name": "Dependencies",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "DependenciesMacros",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "SecureSharing",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "product-name": "Sharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "CODE_SIGN_ENTITLEMENTS": "CaseStudies/CaseStudies.entitlements",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "CaseStudies/CaseStudies-Info.plist",
+        "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+        "LD_RUNPATH_SEARCH_PATHS": [
+          "$(inherited)",
+          "@executable_path/Frameworks",
+        ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingCaseStudies",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "iphoneos",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+      },
+    }, {
+      "name": "CaseStudiesTests",
+      "id": "A6318CDBE1D147E98F812A12",
+      "product": "Products/CaseStudiesTests.xctest",
+      "product-type": "bundle.unit-test",
+      "test-host-target": "CaseStudies",
+      "dependencies": [ "CaseStudies" ],
+      "build-phases": [ "compile-sources", "frameworks", "resources" ],
+      "package-product-members": [
+        { "product-name": "DependenciesTestSupport", "build-phase": { "build-phase": "frameworks" } },
+      ],
+      "build-settings": {
+        "BUNDLE_LOADER": "$(TEST_HOST)",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "CODE_SIGN_STYLE": "Automatic",
+        "DEVELOPMENT_TEAM": "XH437MA6D9",
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+        "LD_RUNPATH_SEARCH_PATHS": [ "$(inherited)", "@loader_path/Frameworks", "@executable_path/Frameworks" ],
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.brennanium.SecureSharingCaseStudiesTests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SDKROOT": "iphoneos",
+        "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/CaseStudies.app/CaseStudies",
+      },
+    },
+  ],
+  "build-settings": {
+    "CLANG_ENABLE_MODULES": "YES",
+    "COPY_PHASE_STRIP[config=Debug]": "NO",
+    "COPY_PHASE_STRIP[config=Release]": "YES",
+    "DEBUG_INFORMATION_FORMAT[config=Debug]": "dwarf",
+    "DEBUG_INFORMATION_FORMAT[config=Release]": "dwarf-with-dsym",
+    "ENABLE_TESTABILITY[config=Debug]": "YES",
+    "ONLY_ACTIVE_ARCH[config=Debug]": "YES",
+    "SDKROOT": "iphoneos",
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug]": "DEBUG $(inherited)",
+    "SWIFT_COMPILATION_MODE[config=Release]": "wholemodule",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Debug]": "-Onone",
+    "SWIFT_OPTIMIZATION_LEVEL[config=Release]": "-O",
+    "SWIFT_VERSION": "6.0",
+  },
+  "last-upgrade": "27.1",
+}
