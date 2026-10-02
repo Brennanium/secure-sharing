@@ -10,7 +10,6 @@ public enum SecureStorageError: Error, Equatable {
     case accessGroup
   }
 
-  case protectedDataUnavailable
   case saveBlockedUntilSuccessfulLoad
   /// No default encryption client or per-key override was provided.
   case cryptoNotConfigured

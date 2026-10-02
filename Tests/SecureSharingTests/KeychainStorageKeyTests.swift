@@ -60,7 +60,7 @@ struct KeychainStorageKeyTests {
   }
 
   @Test("Empty Keychain identifiers fail before accessing storage")
-  func emptyIdentifiers() async {
+  func emptyIdentifiers() {
     let accesses = LockIsolated(0)
     let storage = KeychainStorageClient(
       read: { _ in
@@ -78,30 +78,25 @@ struct KeychainStorageKeyTests {
 
     for (item, field) in invalidItems {
       let expectedError = SecureStorageError.invalidKeychainConfiguration(field: field)
-      await withDependencies {
+      withDependencies {
         $0.keychainStorageClient = storage
       } operation: {
         let key: KeychainStorageKey<String?> = .keychainStorage(
           item.account, service: item.service, accessGroup: item.accessGroup)
 
-        await confirmation { confirm in
-          key.load(
-            context: .initialValue(nil),
-            continuation: LoadContinuation { result in
-              #expect(throws: expectedError) { try result.get() }
-              confirm()
-            }
-          )
-        }
-        await confirmation { confirm in
-          key.save(
-            "secret", context: .didSet,
-            continuation: SaveContinuation { result in
-              #expect(throws: expectedError) { try result.get() }
-              confirm()
-            }
-          )
-        }
+        let loadResult = LockIsolated<Result<String??, any Error>?>(nil)
+        key.load(
+          context: .initialValue(nil),
+          continuation: LoadContinuation { loadResult.setValue($0) }
+        )
+        #expect(throws: expectedError) { try #require(loadResult.value).get() }
+
+        let saveResult = LockIsolated<Result<Never?, any Error>?>(nil)
+        key.save(
+          "secret", context: .didSet,
+          continuation: SaveContinuation { saveResult.setValue($0) }
+        )
+        #expect(throws: expectedError) { try #require(saveResult.value).get() }
       }
 
       let liveClient = KeychainStorageClient.liveValue
@@ -186,28 +181,18 @@ struct KeychainStorageKeyTests {
   }
 
   @Test("Undecodable data cannot be replaced or removed")
-  func undecodableDataIsNotOverwritten() throws {
+  func undecodableDataIsNotOverwritten() async throws {
     let item = KeychainStorageItem(
       service: service, account: "undecodable", accessGroup: accessGroup)
     let invalidData = Data("not-json".utf8)
     try client.write(invalidData, item)
-    let key: KeychainStorageKey<String?> = .keychainStorage(
-      item.account, service: item.service, accessGroup: item.accessGroup)
+    @Shared(.keychainStorage(item.account, service: item.service, accessGroup: item.accessGroup))
+    var value: String?
 
-    key.load(
-      context: .initialValue(nil),
-      continuation: LoadContinuation { result in
-        #expect(throws: SecureStorageError.decodingFailed) { try result.get() }
-      }
-    )
-    for value: String? in ["replacement", nil] {
-      key.save(
-        value,
-        context: .didSet,
-        continuation: SaveContinuation { result in
-          #expect(throws: SecureStorageError.decodingFailed) { try result.get() }
-        }
-      )
+    await #expect(throws: SecureStorageError.decodingFailed) { try await $value.load() }
+    for replacement: String? in ["replacement", nil] {
+      $value.withLock { $0 = replacement }
+      await #expect(throws: SecureStorageError.decodingFailed) { try await $value.save() }
     }
     #expect(try client.read(item) == invalidData)
   }
@@ -223,6 +208,61 @@ struct KeychainStorageKeyTests {
 
     try await $token.load()
     #expect(token == "from-extension")
+  }
+
+  @Test("An external deletion clears an optional value on reload")
+  func externalDeletionClearsOptionalValue() async throws {
+    let item = KeychainStorageItem(service: service, account: "deleted", accessGroup: accessGroup)
+    @Shared(.keychainStorage("deleted", service: service, accessGroup: accessGroup))
+    var token: String?
+
+    $token.withLock { $0 = "old-token" }
+    try client.delete(item)
+    #expect(token == "old-token")
+
+    try await $token.load()
+    #expect(token == nil)
+  }
+
+  @Test("A successful load permits a save from its continuation")
+  func successfulLoadUnblocksBeforeDelivery() {
+    let available = LockIsolated(false)
+    let writes = LockIsolated(0)
+    let storage = KeychainStorageClient(
+      read: { _ in
+        guard available.value else { throw SecureStorageError.keychainInteractionNotAllowed }
+        return nil
+      },
+      write: { _, _ in writes.withValue { $0 += 1 } },
+      delete: { _ in }
+    )
+
+    withDependencies {
+      $0.keychainStorageClient = storage
+    } operation: {
+      let key: KeychainStorageKey<String> = .keychainStorage(
+        "callback", service: service, accessGroup: accessGroup)
+      key.load(
+        context: .initialValue(""),
+        continuation: LoadContinuation { result in
+          #expect(throws: SecureStorageError.keychainInteractionNotAllowed) { try result.get() }
+        }
+      )
+      available.setValue(true)
+      key.load(
+        context: .initialValue(""),
+        continuation: LoadContinuation { result in
+          #expect((try? result.get()) == "")
+          key.save(
+            "new-token", context: .didSet,
+            continuation: SaveContinuation { saveResult in
+              if case .failure(let error) = saveResult { Issue.record(error) }
+            }
+          )
+        }
+      )
+    }
+    #expect(writes.value == 1)
   }
 
   @Test("Failed Keychain writes and deletes surface as save errors")
@@ -280,7 +320,6 @@ struct KeychainStorageKeyTests {
     let interactionError = keychainStorageError(errSecInteractionNotAllowed)
     #expect(interactionError == .keychainInteractionNotAllowed)
     #expect(interactionError.keychainStatus == errSecInteractionNotAllowed)
-    #expect(interactionError != .protectedDataUnavailable)
 
     let entitlementError = keychainStorageError(errSecMissingEntitlement)
     #expect(entitlementError == .keychainMissingEntitlement)

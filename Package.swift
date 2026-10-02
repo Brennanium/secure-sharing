@@ -28,7 +28,8 @@ let package = Package(
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "Sharing", package: "swift-sharing"),
       ],
-      resources: [.process("PrivacyInfo.xcprivacy")]
+      resources: [.process("PrivacyInfo.xcprivacy")],
+      swiftSettings: [.enableUpcomingFeature("NonisolatedNonsendingByDefault")]
     ),
     .testTarget(
       name: "SecureSharingTests",

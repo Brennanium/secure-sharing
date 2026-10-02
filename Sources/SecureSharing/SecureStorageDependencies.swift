@@ -212,22 +212,6 @@ private struct AESGCMKeyStoreIdentity: Hashable, Sendable {
   let keyStoreID: SecureKeyStoreID
 }
 
-/// The protected-data readiness check used by secure app storage.
-public struct SecureStorageStatusClient: Sendable {
-  /// Whether protected data can currently be accessed.
-  public var isProtectedDataAvailable: @Sendable () -> Bool
-  /// The notification that triggers a reload after protected data becomes available.
-  public var protectedDataDidBecomeAvailableNotification: Notification.Name
-
-  public init(
-    isProtectedDataAvailable: @escaping @Sendable () -> Bool,
-    protectedDataDidBecomeAvailableNotification: Notification.Name
-  ) {
-    self.isProtectedDataAvailable = isProtectedDataAvailable
-    self.protectedDataDidBecomeAvailableNotification = protectedDataDidBecomeAvailableNotification
-  }
-}
-
 extension SecureKeyStoreClient {
   static var inMemoryTestValue: SecureKeyStoreClient {
     let key = SymmetricKey(data: Data(repeating: 0xA5, count: 32))
@@ -257,55 +241,17 @@ private enum SecureAppStorageCryptoKey: DependencyKey {
   }
 }
 
-extension SecureStorageStatusClient: DependencyKey {
-  public static var liveValue: SecureStorageStatusClient {
-    SecureStorageStatusClient(
-      isProtectedDataAvailable: {
-        ProtectedDataStatus.isAvailable
-      },
-      protectedDataDidBecomeAvailableNotification: ProtectedDataStatus
-        .didBecomeAvailableNotification
-    )
-  }
-
-  public static var testValue: SecureStorageStatusClient {
-    SecureStorageStatusClient(
-      isProtectedDataAvailable: { true },
-      protectedDataDidBecomeAvailableNotification: Notification.Name(
-        "SecureStorageProtectedDataDidBecomeAvailable")
-    )
-  }
-}
-
-private enum ProtectedDataStatus {
-  static var isAvailable: Bool {
-    if Thread.isMainThread {
-      MainActor.assumeIsolated {
-        #if os(macOS)
-        NSApplication.shared.isProtectedDataAvailable
-        #else
-        UIApplication.shared.isProtectedDataAvailable
-        #endif
-      }
-    } else {
-      DispatchQueue.main.sync {
-        MainActor.assumeIsolated {
-          #if os(macOS)
-          NSApplication.shared.isProtectedDataAvailable
-          #else
-          UIApplication.shared.isProtectedDataAvailable
-          #endif
-        }
-      }
-    }
-  }
-
-  static var didBecomeAvailableNotification: Notification.Name {
+private enum ProtectedDataDidBecomeAvailableNotificationKey: DependencyKey {
+  static var liveValue: Notification.Name {
     #if os(macOS)
     .NSApplicationProtectedDataDidBecomeAvailable
     #else
     UIApplication.protectedDataDidBecomeAvailableNotification
     #endif
+  }
+
+  static var testValue: Notification.Name {
+    Notification.Name("SecureStorageProtectedDataDidBecomeAvailable")
   }
 }
 
@@ -319,13 +265,15 @@ extension DependencyValues {
     set { self[SecureAppStorageCryptoKey.self] = newValue }
   }
 
-  /// Protected-data readiness used by `secureAppStorage` keys.
+  /// A notification that prompts active `secureAppStorage` keys to retry loading.
   ///
-  /// Override this dependency in tests to simulate unavailable storage and recovery.
+  /// The live value is posted when protected files become available. It is a retry signal,
+  /// not proof that a particular Keychain item is accessible.
+  /// Override this dependency in tests to simulate an unlock notification.
   /// See <doc:AvailabilityAndFailures>.
-  public var secureStorageStatus: SecureStorageStatusClient {
-    get { self[SecureStorageStatusClient.self] }
-    set { self[SecureStorageStatusClient.self] = newValue }
+  public var protectedDataDidBecomeAvailableNotification: Notification.Name {
+    get { self[ProtectedDataDidBecomeAvailableNotificationKey.self] }
+    set { self[ProtectedDataDidBecomeAvailableNotificationKey.self] = newValue }
   }
 }
 
@@ -397,10 +345,8 @@ private final class LiveSecureKeyStore: Sendable {
       return data
     case errSecItemNotFound:
       return nil
-    case errSecInteractionNotAllowed:
-      throw SecureStorageError.protectedDataUnavailable
     default:
-      throw SecureStorageError.keychainFailure(status: status)
+      throw keychainStorageError(status)
     }
   }
 
@@ -423,10 +369,8 @@ private final class LiveSecureKeyStore: Sendable {
     switch status {
     case errSecSuccess:
       return
-    case errSecInteractionNotAllowed:
-      throw SecureStorageError.protectedDataUnavailable
     default:
-      throw SecureStorageError.keychainFailure(status: status)
+      throw keychainStorageError(status)
     }
   }
 }

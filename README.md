@@ -57,10 +57,10 @@ prepareDependencies {
 ```
 
 `secureAppStorage` encrypts each value with AES-GCM before writing it to `UserDefaults`. It observes
-storage changes like Sharing's `appStorage`, but refuses to load or save while protected data is
-unavailable. Without an encryption client, loads and saves fail rather than storing plaintext. Use
-`keychainStorage` for values that must be shared with an app extension. The encryption key's
-accessibility also applies only when it is first created.
+storage changes like Sharing's `appStorage`, and reports Keychain access failures instead of
+replacing unreadable values. Without an encryption client, loads and saves fail rather than storing
+plaintext. Use `keychainStorage` for small values shared with an app extension. The encryption key's
+accessibility applies only when it is first created.
 
 ## Testing
 

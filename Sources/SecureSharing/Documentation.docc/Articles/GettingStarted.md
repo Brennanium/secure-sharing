@@ -65,9 +65,9 @@ Use `secureAppStorage` as a Sharing key. An optional value starts as `nil` when 
 saved:
 
 ```swift
-@Shared(.secureAppStorage("accessToken")) var accessToken: String?
+@Shared(.secureAppStorage("privateNote")) var privateNote: String?
 
-$accessToken.withLock { $0 = "example-token" }
+$privateNote.withLock { $0 = "A private note" }
 ```
 
 For a non-optional value, provide an initial value:
@@ -88,11 +88,11 @@ The default client is preferred for most keys. When a key needs a different conf
 ```swift
 @Shared(
   .secureAppStorage(
-    "separateToken",
+    "separateNote",
     crypto: .keychain(service: "com.example.my-app.separate", account: "encryption-key")
   )
 )
-var separateToken: String?
+var separateNote: String?
 ```
 
 A live app needs either a default or a per-key crypto client. Without one, SecureSharing reports

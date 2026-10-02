@@ -10,8 +10,7 @@ values. Optional values are supported. Non-optional shared values need an initia
 optional value can start as `nil`.
 
 See <doc:GettingStarted> to configure a default encryption client and create your first key.
-For a small value that must be accessible from an app extension, consider <doc:KeychainStorage>
-instead; this strategy's readiness check uses app protected-data APIs.
+For a small value shared with an app extension, consider <doc:KeychainStorage> instead.
 
 ### Stored format
 
@@ -32,9 +31,9 @@ key-value observation. Keys containing `.` or starting with `@` use a notificati
 produce a runtime issue unless `appStorageKeyFormatWarningEnabled` is disabled. Prefer keys without
 those formats for more precise observation.
 
-The strategy also listens for protected data becoming available so an active shared value can
-reload after an unavailable period. It does not rewrite the value during that reload. See
-<doc:AvailabilityAndFailures> for the failure and recovery rules.
+An active shared value also retries loading when the system announces that protected data has
+become available. This is a retry signal, not a check of the Keychain item's accessibility. The
+reload does not rewrite the value. See <doc:AvailabilityAndFailures> for failure and recovery rules.
 
 ### Configuration and identity
 

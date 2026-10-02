@@ -1,6 +1,6 @@
 # Availability and failures
 
-Handle Keychain and protected-data failures without replacing stored data.
+Handle Keychain failures without replacing stored data.
 
 ## Overview
 
@@ -8,22 +8,26 @@ Both strategies distinguish an absent value from an unreadable one. Neither writ
 value during load. A failed load blocks subsequent saves on that shared key until a successful
 reload, protecting a stored value from an in-memory default or stale value.
 
-### Protected data
+### Keychain availability
 
-With a configured crypto client, `secureAppStorage` checks protected-data availability before
-accessing UserDefaults. If it is unavailable, load and save fail with
-`SecureStorageError.protectedDataUnavailable`; neither operation falls back to unencrypted
-persistence. An active subscription listens for protected data becoming available and reloads the
-stored value without writing it back.
+With the built-in crypto client, `secureAppStorage` attempts the actual Keychain operation when
+decrypting an existing value or encrypting a new one. An inaccessible key fails the operation; it
+never falls back to plaintext.
+When no ciphertext exists, a load returns the initial value without accessing Keychain or writing
+to UserDefaults. Saves of `nil` remove an existing value only after it has been decrypted.
 
-The built-in readiness check uses app protected-data APIs. Do not assume `secureAppStorage` is
-suitable for an app extension or for work that must proceed before the first device unlock.
+Loads and saves complete synchronously and Keychain access can block the calling thread, including
+the main thread. The projected shared value's throwing methods expose failures, but do not move
+the underlying Keychain call to a background thread.
 
-`keychainStorage` does not use this readiness check or subscribe to a protected-data notification.
-It attempts the Keychain operation and reports the resulting error. Accessibility controls when an
-item can be accessed; choosing `afterFirstUnlockThisDeviceOnly` does not make it accessible before
-the first unlock after a restart. Retry with an explicit `$value.load()` when access may have
-become available. See <doc:KeychainStorage>.
+An active `secureAppStorage` subscription retries loading when protected data becomes available.
+This notification often accompanies an unlock, but does not prove that a particular Keychain item
+can be read. The retry leaves ciphertext untouched. In an app extension or other context without
+this notification, call `$value.load()` when access may have changed.
+
+`keychainStorage` also attempts the actual Keychain operation, but does not subscribe to this
+notification. Its default `afterFirstUnlockThisDeviceOnly` accessibility does not allow access
+before the first unlock after a restart. See <doc:KeychainStorage>.
 
 ### Inspect errors explicitly
 
@@ -52,9 +56,8 @@ Common errors include:
 | Error | Meaning |
 | --- | --- |
 | `cryptoNotConfigured` | `secureAppStorage` has no default or per-key encryption client. |
-| `protectedDataUnavailable` | `secureAppStorage` failed its readiness check, or its built-in Keychain key store received `errSecInteractionNotAllowed`. |
-| `keychainInteractionNotAllowed` | A direct `keychainStorage` operation received `errSecInteractionNotAllowed`; this status alone does not establish why access was denied. |
-| `keychainMissingEntitlement` | A direct `keychainStorage` operation lacks a required entitlement. |
+| `keychainInteractionNotAllowed` | A Keychain operation received `errSecInteractionNotAllowed`; this status alone does not establish why access was denied. |
+| `keychainMissingEntitlement` | A Keychain operation lacks a required entitlement. |
 | `keyUnavailable` | An encryption key is missing or invalid. The built-in AES-GCM decrypt operation preserves key-loading errors before it attempts decryption. |
 | `invalidStoredValue` | A `UserDefaults` entry or Keychain result has an unexpected type. |
 | `decryptionFailed` or `decodingFailed` | Stored bytes could not be authenticated or decoded. |

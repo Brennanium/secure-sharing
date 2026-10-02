@@ -43,10 +43,10 @@ point when another process may have changed the item:
 try await $accessToken.load()
 ```
 
-The same applies after Keychain access becomes available following a failed load. A failed load
-blocks saves on that shared key until a successful reload. Do not overwrite the in-memory value
-without checking whether the existing item can be read. There is no cross-process transaction or
-conflict resolution; coordinate concurrent writers in the app if that matters for the value.
+The same applies after Keychain access becomes available following a failed load. A missing
+optional item reloads as `nil`; a missing non-optional item leaves its current in-memory value
+unchanged. A failed load blocks saves on that shared key until a successful reload. There is no
+cross-process transaction or conflict resolution; coordinate concurrent writers if that matters.
 
 ### Test without Keychain
 
@@ -75,7 +75,7 @@ func storesToken() {
 Override ``Dependencies/DependencyValues/keychainStorageClient`` only when a test needs to
 simulate a particular Keychain response or failure.
 
-This tests sharing and encoding, not signing or cross-process access. A signed integration test
+This tests sharing, not encoding, signing, or cross-process access. A signed integration test
 must opt into ``KeychainStorageClient/liveValue`` to exercise the real Keychain; the test context
 otherwise uses the in-memory client. Give the host and extension the same access-group
 entitlement, and verify that an explicit reload observes the other process's write. Use a device

@@ -32,9 +32,7 @@ extension SharedReaderKey {
 public struct KeychainStorageKey<Value: Codable & Sendable>: SharedKey {
   private let item: KeychainStorageItem
   private let client: KeychainStorageClient
-  private let saveProtectionState = Locked(
-    (blockedUntilSuccessfulLoad: false, loadFailureGeneration: UInt64.zero)
-  )
+  private let saveProtectionState = Locked(false)
 
   public var id: KeychainStorageKeyID {
     KeychainStorageKeyID(itemIdentity: item.identity, clientIdentity: client.identity)
@@ -49,13 +47,10 @@ public struct KeychainStorageKey<Value: Codable & Sendable>: SharedKey {
   public func load(context: LoadContext<Value>, continuation: LoadContinuation<Value>) {
     let result = Result {
       try item.validate()
-      return try client.read(item).map(decode) ?? context.initialValue
+      return try client.read(item).map(decode) ?? missingStoredValue(for: context)
     }
-    let failureGeneration = recordLoadResultBeforeDelivery(result)
+    recordLoadResultBeforeDelivery(result)
     continuation.resume(with: result)
-    if let failureGeneration {
-      clearSaveBlockAfterSuccessfulDelivery(ifNoNewerFailureThan: failureGeneration)
-    }
   }
 
   public func subscribe(context _: LoadContext<Value>, subscriber _: SharedSubscriber<Value>)
@@ -71,7 +66,7 @@ public struct KeychainStorageKey<Value: Codable & Sendable>: SharedKey {
         if let existingData = try client.read(item) {
           _ = try decode(existingData)
         }
-        guard !saveProtectionState.withLock({ $0.blockedUntilSuccessfulLoad }) else {
+        guard !saveProtectionState.withLock({ $0 }) else {
           throw SecureStorageError.saveBlockedUntilSuccessfulLoad
         }
         if let data = try encode(value) {
@@ -93,23 +88,11 @@ public struct KeychainStorageKey<Value: Codable & Sendable>: SharedKey {
     catch { throw SecureStorageError.encodingFailed }
   }
 
-  private func recordLoadResultBeforeDelivery(_ result: Result<Value?, any Error>) -> UInt64? {
+  private func recordLoadResultBeforeDelivery(_ result: Result<Value?, any Error>) {
     saveProtectionState.withLock { state in
       switch result {
-      case .success:
-        return state.loadFailureGeneration
-      case .failure:
-        state.loadFailureGeneration &+= 1
-        state.blockedUntilSuccessfulLoad = true
-        return nil
-      }
-    }
-  }
-
-  private func clearSaveBlockAfterSuccessfulDelivery(ifNoNewerFailureThan generation: UInt64) {
-    saveProtectionState.withLock { state in
-      if state.loadFailureGeneration == generation {
-        state.blockedUntilSuccessfulLoad = false
+      case .success: state = false
+      case .failure: state = true
       }
     }
   }

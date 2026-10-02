@@ -28,8 +28,8 @@ both configurations against the same stored key without a migration plan.
 
 ### Know what changes the stored data
 
-`secureAppStorage("accessToken")` stores ciphertext as `Data` at the UserDefaults key
-`secure_accessToken`. The logical key is passed to the crypto client as associated data. The
+`secureAppStorage("privateNote")` stores ciphertext as `Data` at the UserDefaults key
+`secure_privateNote`. The logical key is passed to the crypto client as associated data. The
 built-in AES-GCM client authenticates it, so renaming the key changes both the storage location and
 the authenticated data. Copying its ciphertext to a new key is not enough.
 

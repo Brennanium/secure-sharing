@@ -174,7 +174,7 @@ private let securePrefix = "secure_"
 ///
 /// Configure `secureAppStorageCrypto` before using this key, or pass `crypto:` to override it for
 /// one key.
-/// Loads and saves run synchronously and may block the calling thread.
+/// Loads and saves run synchronously and may block the calling thread while accessing Keychain.
 /// See <doc:GettingStarted> for setup and <doc:SecureAppStorage> for storage behavior.
 public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   private let lookup: any Lookup<Value>
@@ -182,9 +182,8 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   private let secureKey: String
   private let store: UncheckedSendable<UserDefaults>
   private let crypto: SecureCryptoClient
-  private let saveProtectionState = Locked(
-    (blockedUntilSuccessfulLoad: false, loadFailureGeneration: UInt64.zero)
-  )
+  private let storageLock = NSRecursiveLock()
+  private let saveProtectionState = Locked(false)
 
   public var id: SecureAppStorageKeyID {
     SecureAppStorageKeyID(key: key, store: store.wrappedValue, crypto: crypto)
@@ -350,12 +349,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
       continuation.resume(throwing: SecureStorageError.cryptoNotConfigured)
       return
     }
-    @Dependency(\.secureStorageStatus) var secureStorageStatus
-
-    let result = Result {
-      try loadValue(default: context.initialValue, status: secureStorageStatus)
-    }
-    deliver(result, to: continuation)
+    continuation.resume(with: loadResult(default: missingStoredValue(for: context)))
   }
 
   public func subscribe(context: LoadContext<Value>, subscriber: SharedSubscriber<Value>)
@@ -364,8 +358,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
     guard crypto.isConfigured else {
       return SharedSubscription {}
     }
-    @Dependency(\.secureStorageStatus) var secureStorageStatus
-    let status = secureStorageStatus
+    @Dependency(\.protectedDataDidBecomeAvailableNotification) var didBecomeAvailableNotification
 
     let keyContainsPeriod = key.contains(".")
     let keyHasAtPrefix = key.hasPrefix("@")
@@ -402,21 +395,15 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
     }
 
     let removeObservers = Locked<[@Sendable () -> Void]>([])
+    let isActive = Locked(true)
 
     let protectedDataObserver = NotificationCenter.default.addObserver(
-      forName: status.protectedDataDidBecomeAvailableNotification,
+      forName: didBecomeAvailableNotification,
       object: nil,
       queue: nil
     ) { _ in
-      guard status.isProtectedDataAvailable(), !SharedSecureAppStorageLocals.isSetting
-      else {
-        return
-      }
-
-      deliver(
-        Result { try loadValue(default: context.initialValue, status: status) },
-        to: subscriber
-      )
+      guard isActive.withLock({ $0 }), !SharedSecureAppStorageLocals.isSetting else { return }
+      subscriber.yield(with: loadResult(default: context.initialValue))
     }
     removeObservers.withLock {
       $0.append { NotificationCenter.default.removeObserver(protectedDataObserver) }
@@ -430,12 +417,9 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
         queue: nil
       ) { _ in
         guard !SharedSecureAppStorageLocals.isSetting else { return }
-        DispatchQueue.main.async {
-          guard status.isProtectedDataAvailable() else { return }
-          let result = Result {
-            try loadValue(default: context.initialValue, status: status)
-          }
-
+        Task { @MainActor in
+          guard isActive.withLock({ $0 }) else { return }
+          let result = loadResult(default: context.initialValue)
           switch result {
           case .success(let newValue):
             let oldValue = previousValue.withLock { $0 }
@@ -444,9 +428,9 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
             guard !valuesAreEqual || isInitialValue else { return }
 
             previousValue.withLock { $0 = newValue }
-            deliver(.success(newValue), to: subscriber)
+            subscriber.yield(with: .success(newValue))
           case .failure(let error):
-            deliver(.failure(error), to: subscriber)
+            subscriber.yield(with: .failure(error))
           }
         }
       }
@@ -455,15 +439,8 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
       }
     } else {
       let observer = Observer {
-        guard status.isProtectedDataAvailable(), !SharedSecureAppStorageLocals.isSetting
-        else {
-          return
-        }
-
-        deliver(
-          Result { try loadValue(default: context.initialValue, status: status) },
-          to: subscriber
-        )
+        guard isActive.withLock({ $0 }), !SharedSecureAppStorageLocals.isSetting else { return }
+        subscriber.yield(with: loadResult(default: context.initialValue))
       }
 
       store.wrappedValue.addObserver(observer, forKeyPath: secureKey, context: nil)
@@ -473,6 +450,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
     }
 
     return SharedSubscription {
+      isActive.withLock { $0 = false }
       removeObservers.withLock {
         $0.forEach { remove in remove() }
       }
@@ -484,46 +462,51 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
       continuation.resume(throwing: SecureStorageError.cryptoNotConfigured)
       return
     }
-    @Dependency(\.secureStorageStatus) var secureStorageStatus
-
-    continuation.resume(
-      with: Result {
-        try saveValue(value, status: secureStorageStatus)
-      })
+    continuation.resume(with: withStorageLock { Result { try saveValue(value) } })
   }
 
-  private func loadValue(default initialValue: Value?, status: SecureStorageStatusClient) throws
-    -> Value?
-  {
-    guard crypto.isConfigured else { throw SecureStorageError.cryptoNotConfigured }
-    guard status.isProtectedDataAvailable() else {
-      throw SecureStorageError.protectedDataUnavailable
+  private func loadResult(default initialValue: Value?) -> Result<Value?, any Error> {
+    withStorageLock {
+      let result = Result { try readStoredValue(default: initialValue) }
+      saveProtectionState.withLock { state in
+        switch result {
+        case .success: state = false
+        case .failure: state = true
+        }
+      }
+      return result
     }
-    let value = try storedData().map {
+  }
+
+  private func withStorageLock<R>(_ operation: () -> R) -> R {
+    storageLock.lock()
+    defer { storageLock.unlock() }
+    return operation()
+  }
+
+  private func readStoredValue(default initialValue: Value?) throws -> Value? {
+    try storedData().map {
       try lookup.decodeValue(from: $0, associatedDataKey: key, crypto: crypto)
-    }
-    guard status.isProtectedDataAvailable() else {
-      throw SecureStorageError.protectedDataUnavailable
-    }
-    return value ?? initialValue
+    } ?? initialValue
   }
 
-  private func saveValue(_ value: Value, status: SecureStorageStatusClient) throws {
-    guard crypto.isConfigured else { throw SecureStorageError.cryptoNotConfigured }
-    guard status.isProtectedDataAvailable() else {
-      throw SecureStorageError.protectedDataUnavailable
-    }
+  private func saveValue(_ value: Value) throws {
+    let encryptedData = try prepareSave(value)
+    try commitSave(encryptedData)
+  }
+
+  private func prepareSave(_ value: Value) throws -> Data? {
     if let existingData = try storedData() {
       _ = try lookup.decodeValue(from: existingData, associatedDataKey: key, crypto: crypto)
     }
-    guard !saveProtectionState.withLock({ $0.blockedUntilSuccessfulLoad }) else {
+    guard !saveProtectionState.withLock({ $0 }) else {
       throw SecureStorageError.saveBlockedUntilSuccessfulLoad
     }
-    let encryptedData = try lookup.encodeValue(value, associatedDataKey: key, crypto: crypto)
-    guard status.isProtectedDataAvailable() else {
-      throw SecureStorageError.protectedDataUnavailable
-    }
-    guard !saveProtectionState.withLock({ $0.blockedUntilSuccessfulLoad }) else {
+    return try lookup.encodeValue(value, associatedDataKey: key, crypto: crypto)
+  }
+
+  private func commitSave(_ encryptedData: Data?) throws {
+    guard !saveProtectionState.withLock({ $0 }) else {
       throw SecureStorageError.saveBlockedUntilSuccessfulLoad
     }
     SharedSecureAppStorageLocals.$isSetting.withValue(true) {
@@ -539,49 +522,6 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
     guard let storedValue = store.wrappedValue.object(forKey: secureKey) else { return nil }
     guard let data = storedValue as? Data else { throw SecureStorageError.invalidStoredValue }
     return data
-  }
-
-  private func deliver(
-    _ result: Result<Value?, any Error>,
-    to continuation: LoadContinuation<Value>
-  ) {
-    let failureGeneration = recordLoadResultBeforeDelivery(result)
-    continuation.resume(with: result)
-    if let failureGeneration {
-      clearSaveBlockAfterSuccessfulDelivery(ifNoNewerFailureThan: failureGeneration)
-    }
-  }
-
-  private func deliver(
-    _ result: Result<Value?, any Error>,
-    to subscriber: SharedSubscriber<Value>
-  ) {
-    let failureGeneration = recordLoadResultBeforeDelivery(result)
-    subscriber.yield(with: result)
-    if let failureGeneration {
-      clearSaveBlockAfterSuccessfulDelivery(ifNoNewerFailureThan: failureGeneration)
-    }
-  }
-
-  private func recordLoadResultBeforeDelivery(_ result: Result<Value?, any Error>) -> UInt64? {
-    saveProtectionState.withLock { state in
-      switch result {
-      case .success:
-        return state.loadFailureGeneration
-      case .failure:
-        state.loadFailureGeneration &+= 1
-        state.blockedUntilSuccessfulLoad = true
-        return nil
-      }
-    }
-  }
-
-  private func clearSaveBlockAfterSuccessfulDelivery(ifNoNewerFailureThan generation: UInt64) {
-    saveProtectionState.withLock { state in
-      if state.loadFailureGeneration == generation {
-        state.blockedUntilSuccessfulLoad = false
-      }
-    }
   }
 }
 

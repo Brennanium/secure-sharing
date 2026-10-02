@@ -109,7 +109,8 @@ The default is only an in-memory starting value: a stored value takes precedence
 absent value does not write the default to storage. It does not affect key identity, so avoid
 defining different defaults for the same stored item. A default does not conceal load failures;
 check the shared value's `loadError` and reload successfully before saving after a failure. An
-explicit reload of a missing value leaves the current in-memory value unchanged.
+explicit reload of a missing non-optional value leaves the current in-memory value unchanged;
+an optional value reloads as `nil`.
 
 Treat key definitions as part of your stored-data format. Changing an identifier or encryption
 configuration after release may require a migration; see <doc:ChangingSecureStorage>.

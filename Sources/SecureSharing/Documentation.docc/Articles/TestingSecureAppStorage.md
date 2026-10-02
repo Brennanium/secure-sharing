@@ -15,12 +15,12 @@ import Sharing
 import Testing
 
 @Test(.dependencies)
-func tokenIsShared() {
-  @Shared(.secureAppStorage("accessToken")) var accessToken: String?
-  @Shared(.secureAppStorage("accessToken")) var anotherToken: String?
+func noteIsShared() {
+  @Shared(.secureAppStorage("privateNote")) var privateNote: String?
+  @Shared(.secureAppStorage("privateNote")) var anotherNote: String?
 
-  $accessToken.withLock { $0 = "test-token" }
-  #expect(anotherToken == "test-token")
+  $privateNote.withLock { $0 = "test-note" }
+  #expect(anotherNote == "test-note")
 }
 ```
 
@@ -36,8 +36,8 @@ Override `defaultAppStorage` to inspect the stored ciphertext. To test with a cu
 pass a ``SecureKeyStoreClient`` to
 [`AES.GCM.secureAppStorage(keyStore:)`](<doc:CryptoKit/AES/GCM/secureAppStorage(keyStore:)>),
 then set `secureAppStorageCrypto` or pass the client to one key. Override
-``Dependencies/DependencyValues/secureStorageStatus`` to simulate protected-data transitions
-without locking a device.
+``Dependencies/DependencyValues/protectedDataDidBecomeAvailableNotification`` to trigger a reload
+in a test; use a custom key store to simulate an inaccessible encryption key.
 
 In a live app, an unconfigured default reports an issue and rejects load and save before accessing
 UserDefaults. Tests use an in-memory client by default, so they do not exercise that live failure

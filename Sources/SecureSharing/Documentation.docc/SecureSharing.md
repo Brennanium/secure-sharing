@@ -60,5 +60,4 @@ respective storage and observation behavior.
 - ``SecureKeyStoreClient``
 - ``SecureKeyStoreID``
 - ``SecureKeyStoreAccessibility``
-- ``SecureStorageStatusClient``
 - ``SecureStorageError``

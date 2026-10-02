@@ -1,6 +1,7 @@
 import CryptoKit
 import Dependencies
 import Foundation
+import IssueReporting
 import Sharing
 import Testing
 @testable import SecureSharing
@@ -9,7 +10,7 @@ import Testing
 struct SecureStorageDependenciesTests {
   @Test("Missing live crypto reports a configuration issue", .dependency(\.context, .live))
   func missingLiveCryptoReportsIssue() {
-    withKnownIssue {
+    expectReportsIssue {
       @Dependency(\.secureAppStorageCrypto) var crypto
       #expect(throws: SecureStorageError.cryptoNotConfigured) {
         try crypto.encrypt(Data(), Data())
@@ -90,7 +91,7 @@ struct SecureStorageDependenciesTests {
     "An unconfigured secure key never accesses UserDefaults",
     .dependency(\.secureAppStorageCrypto, .unconfigured)
   )
-  func unconfiguredSecureKeyFailsBeforeAccessingStorage() async {
+  func unconfiguredSecureKeyFailsBeforeAccessingStorage() {
     let store = AccessRecordingUserDefaults(suiteName: "test.\(UUID().uuidString)")!
     let existingCiphertext = Data([1, 2, 3])
     store.set(existingCiphertext, forKey: "secure_existing")
@@ -99,25 +100,23 @@ struct SecureStorageDependenciesTests {
     for name in ["missing", "existing"] {
       let key = SecureAppStorageKey<Int?>.secureAppStorage(name, store: store)
 
-      await confirmation { confirm in
-        key.load(
-          context: .initialValue(42),
-          continuation: LoadContinuation { result in
-            #expect(throws: SecureStorageError.cryptoNotConfigured) { try result.get() }
-            confirm()
-          }
-        )
+      let loadResult = LockIsolated<Result<Int??, any Error>?>(nil)
+      key.load(
+        context: .initialValue(42),
+        continuation: LoadContinuation { loadResult.setValue($0) }
+      )
+      #expect(throws: SecureStorageError.cryptoNotConfigured) {
+        try #require(loadResult.value).get()
       }
       for value: Int? in [42, nil] {
-        await confirmation { confirm in
-          key.save(
-            value,
-            context: .didSet,
-            continuation: SaveContinuation { result in
-              #expect(throws: SecureStorageError.cryptoNotConfigured) { try result.get() }
-              confirm()
-            }
-          )
+        let saveResult = LockIsolated<Result<Never?, any Error>?>(nil)
+        key.save(
+          value,
+          context: .didSet,
+          continuation: SaveContinuation { saveResult.setValue($0) }
+        )
+        #expect(throws: SecureStorageError.cryptoNotConfigured) {
+          try #require(saveResult.value).get()
         }
       }
     }
@@ -291,6 +290,10 @@ struct SecureStorageDependenciesTests {
     }
     #expect(creations.value == 0)
   }
+}
+
+private func isMainThread() -> Bool {
+  Thread.isMainThread
 }
 
 private struct AlternateCryptoID: Hashable, Sendable {

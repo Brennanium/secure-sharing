@@ -12,7 +12,7 @@ See [type-safe keys](<doc:TypeSafeSecureKeys>) to reuse a name and configuration
 ### Configuration
 
 - ``Dependencies/DependencyValues/secureAppStorageCrypto``
-- ``Dependencies/DependencyValues/secureStorageStatus``
+- ``Dependencies/DependencyValues/protectedDataDidBecomeAvailableNotification``
 
 ### Identifying storage
 
