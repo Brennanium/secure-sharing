@@ -1,0 +1,7 @@
+version: 1
+builder:
+  configs:
+    - scheme: SecureSharing
+      documentation_targets: [SecureSharing]
+      custom_documentation_parameters:
+        - '--enable-experimental-overloaded-symbol-presentation'

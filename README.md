@@ -4,8 +4,6 @@ Secure persistence for [Sharing] with Keychain and encrypted `UserDefaults` stor
 
 [Sharing]: https://github.com/pointfreeco/swift-sharing
 
-For setup and behavior details, see the [DocC guides](Sources/SecureSharing/Documentation.docc/SecureSharing.md).
-
 ## Overview
 
 SecureSharing adds two persistence strategies to Sharing's `@Shared` property wrapper. Use
@@ -66,6 +64,12 @@ accessibility applies only when it is first created.
 
 Run the dependency-injected tests with `swift test`. Signed cross-process tests live in
 `Tests/IntegrationHost.xcodeproj`; see the [iOS test steps](Tests/IntegrationHost/iOS/README.md).
+
+## Documentation
+
+The documentation for `main` is available here:
+
+* [`main`](https://swiftpackageindex.com/brennanium/secure-sharing/main/documentation/securesharing/)
 
 ## Examples
 
