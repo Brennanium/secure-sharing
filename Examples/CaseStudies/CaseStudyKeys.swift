@@ -26,8 +26,6 @@ struct AuthenticatedCheckRecord: Codable, Equatable, Sendable {
 }
 
 private enum DemoStorage {
-  static let keychainService = "com.brennanium.SecureSharingCaseStudies.auth"
-  static let keychainAccount = "accessToken"
   static let accessGroup: String = {
     guard let group = Bundle.main.object(forInfoDictionaryKey: "DemoKeychainAccessGroup") as? String
     else { preconditionFailure("Missing DemoKeychainAccessGroup in the app's Info.plist") }
@@ -39,18 +37,15 @@ extension SecureCryptoClient {
   static var caseStudies: Self {
     .keychain(
       service: "com.brennanium.SecureSharingCaseStudies",
-      account: "app-storage-key"
+      account: "app-storage-key",
+      accessGroup: DemoStorage.accessGroup
     )
   }
 }
 
-extension SharedKey where Self == KeychainStorageKey<DemoSession?> {
+extension SharedKey where Self == SecureAppStorageKey<DemoSession?> {
   static var demoSession: Self {
-    .keychainStorage(
-      DemoStorage.keychainAccount,
-      service: DemoStorage.keychainService,
-      accessGroup: DemoStorage.accessGroup
-    )
+    .secureAppStorage("demoSession")
   }
 }
 

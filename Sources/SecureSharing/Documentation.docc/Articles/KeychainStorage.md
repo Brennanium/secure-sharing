@@ -4,34 +4,40 @@ Persist a small shared value directly in a generic-password Keychain item.
 
 ## Overview
 
-Use `keychainStorage` for a `Codable` and `Sendable` value that belongs in Keychain, such as a
-token. Unlike `secureAppStorage`, it does not write to `UserDefaults` or require a crypto client.
+Use `keychainStorage` for a small, targeted `Codable` and `Sendable` secret that should live
+directly in Keychain and does not need `UserDefaults` observation. For general encrypted shared
+state, start with <doc:SecureAppStorage> instead.
 
 ```swift
 @Shared(.keychainStorage(
-  "accessToken",
-  service: "com.example.my-app.tokens",
+  "recoveryCode",
+  service: "com.example.my-app.recovery",
   accessGroup: "TEAMID.com.example.shared"
-)) var accessToken: String?
+)) var recoveryCode: String?
 ```
 
-The account, service, and access group identify the item and must be nonempty. Specify a Keychain
-access group authorized by the app's signed entitlements. An extension can use the same item only
-if its entitlements authorize that group too. Passing the same account and service without the
-same access group is not sufficient. Use a [type-safe key](<doc:TypeSafeSecureKeys>) to define
-these identifiers once.
+The service, account, and access group identify the item. Both the app and any extension that
+uses it need the matching Keychain access-group entitlement. Define these identifiers once with
+a [type-safe key](<doc:TypeSafeSecureKeys>).
 
-### Values and availability
+### Save and delete
 
-The strategy JSON-encodes values before writing them to Keychain. Loading an absent item returns
-the initial value without writing it. Setting an optional shared value to `nil` deletes the item.
-Reads and writes are synchronous and may block the calling thread.
+Values are JSON-encoded before being written to Keychain. Loading an absent item returns the
+initial value without writing it. Set an optional value to `nil` to delete its item:
 
-The default accessibility is `afterFirstUnlockThisDeviceOnly`: the item is available after the
-first unlock following a restart and does not migrate to another device. Pass `accessibility:` to
-choose a different creation policy. Changing it on an existing item does not update that item's
-accessibility. The strategy does not preflight protected-data readiness; it reports Keychain
-failures from the attempted operation. See <doc:AvailabilityAndFailures>.
+```swift
+$recoveryCode.withLock { $0 = nil }
+```
+
+Keychain reads and writes are synchronous and may block the calling thread.
+
+### Choose accessibility
+
+The default is `afterFirstUnlockThisDeviceOnly`: an item created with this policy is available
+after the first unlock following a restart and does not migrate to another device. Pass
+`accessibility:` to choose a different policy for new items; changing it does not update an
+existing item. The strategy attempts Keychain access rather than preflighting protected-data
+readiness. See <doc:AvailabilityAndFailures>.
 
 ### Refresh after another process writes
 
@@ -40,13 +46,12 @@ process update each other, but an app does not automatically see an extension's 
 point when another process may have changed the item:
 
 ```swift
-try await $accessToken.load()
+try await $recoveryCode.load()
 ```
 
-The same applies after Keychain access becomes available following a failed load. A missing
-optional item reloads as `nil`; a missing non-optional item leaves its current in-memory value
-unchanged. A failed load blocks saves on that shared key until a successful reload. There is no
-cross-process transaction or conflict resolution; coordinate concurrent writers if that matters.
+Reload after Keychain access becomes available following a failed load, too. A missing optional
+item reloads as `nil`; a missing non-optional item keeps its current in-memory value. A failed
+load blocks saves until a successful reload. Concurrent writers need their own coordination.
 
 ### Test without Keychain
 
@@ -60,23 +65,21 @@ import Sharing
 import Testing
 
 @Test(.dependencies)
-func storesToken() {
+func storesRecoveryCode() {
   @Shared(.keychainStorage(
-    "accessToken",
+    "recoveryCode",
     service: "example.tests",
     accessGroup: "example.tests"
-  )) var accessToken: String?
+  )) var recoveryCode: String?
 
-  $accessToken.withLock { $0 = "test-token" }
-  #expect(accessToken == "test-token")
+  $recoveryCode.withLock { $0 = "test-code" }
+  #expect(recoveryCode == "test-code")
 }
 ```
 
 Override ``Dependencies/DependencyValues/keychainStorageClient`` only when a test needs to
 simulate a particular Keychain response or failure.
 
-This tests sharing, not encoding, signing, or cross-process access. A signed integration test
-must opt into ``KeychainStorageClient/liveValue`` to exercise the real Keychain; the test context
-otherwise uses the in-memory client. Give the host and extension the same access-group
-entitlement, and verify that an explicit reload observes the other process's write. Use a device
-to check behavior around first unlock and other accessibility conditions.
+This tests sharing, not live Keychain access. Signed integration tests must opt into
+``KeychainStorageClient/liveValue`` and give both targets the same access-group entitlement.
+Use a device to test first-unlock and other accessibility conditions.

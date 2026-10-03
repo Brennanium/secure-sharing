@@ -1,10 +1,13 @@
+import Combine
 import ConcurrencyExtras
 import Foundation
+import Observation
 import SecureSharing
 import Security
+import Sharing
 import Testing
 
-@Suite("Signed Keychain Integration")
+@Suite("Signed Storage Integration")
 struct KeychainIntegrationTests {
   private let service = "com.brennanium.secure-sharing.integration-tests"
 
@@ -138,6 +141,104 @@ struct KeychainIntegrationTests {
     let storedData = try client.read(item)
     let data = try #require(storedData)
     #expect(try JSONDecoder().decode(String.self, from: data) == "service-value")
+  }
+
+  @Test("An XPC write to encrypted app storage updates an active Shared value")
+  func xpcServiceSharesSecureAppStorageAndObservation() async throws {
+    let keychainGroup = try accessGroup()
+    let suiteName = try #require(
+      Bundle.main.object(forInfoDictionaryKey: "SecureSharingTestAppGroup") as? String
+    )
+    let store = try #require(UserDefaults(suiteName: suiteName))
+    let key = "crossProcess" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    let account = UUID().uuidString
+    let crypto = SecureCryptoClient.keychain(
+      service: service, account: account, accessGroup: keychainGroup
+    )
+    let keyItem = KeychainStorageItem(
+      service: service, account: account, accessGroup: keychainGroup
+    )
+    defer {
+      store.removeObject(forKey: "secure_" + key)
+      try? KeychainStorageClient.liveValue.delete(keyItem)
+    }
+
+    @Shared(.secureAppStorage(key, store: store, crypto: crypto))
+    var storedValue: String?
+    $storedValue.withLock { $0 = "host-value" }
+    #expect($storedValue.saveError == nil)
+    let ciphertext = try #require(store.data(forKey: "secure_" + key))
+    #expect(!String(decoding: ciphertext, as: UTF8.self).contains("host-value"))
+
+    let (updates, updateContinuation) = AsyncStream.makeStream(of: String?.self)
+    let observation = $storedValue.publisher.sink { updateContinuation.yield($0) }
+    defer {
+      observation.cancel()
+      updateContinuation.finish()
+    }
+    let observationChanged = LockIsolated(false)
+    withObservationTracking {
+      _ = storedValue
+    } onChange: {
+      observationChanged.withValue { $0 = true }
+    }
+
+    let connection = NSXPCConnection(
+      serviceName: "com.brennanium.SecureSharingTestHost.KeychainProbeService"
+    )
+    connection.remoteObjectInterface = NSXPCInterface(with: KeychainProbeProtocol.self)
+    connection.resume()
+    defer { connection.invalidate() }
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+      let completed = LockIsolated(false)
+      let finish: @Sendable (Result<Void, any Error>) -> Void = { result in
+        let shouldResume = completed.withValue { completed in
+          guard !completed else { return false }
+          completed = true
+          return true
+        }
+        if shouldResume { continuation.resume(with: result) }
+      }
+      let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+        finish(.failure(error))
+      } as! KeychainProbeProtocol
+      proxy.replaceSecureAppStorageValue(
+        key: key,
+        suiteName: suiteName,
+        account: account,
+        accessGroup: keychainGroup,
+        expected: "host-value",
+        replacement: "service-value"
+      ) { success, processID, message in
+        if success && processID.int32Value != ProcessInfo.processInfo.processIdentifier {
+          finish(.success(()))
+        } else {
+          finish(.failure(KeychainProbeFailure(message.map(String.init) ?? "XPC ran in host process")))
+        }
+      }
+      Task.detached {
+        try? await Task.sleep(for: .seconds(10))
+        finish(.failure(KeychainProbeFailure("XPC service did not reply within 10 seconds")))
+      }
+    }
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask {
+        for await update in updates {
+          if update == "service-value" { return }
+        }
+        throw KeychainProbeFailure("The secure app storage observation ended before the update")
+      }
+      group.addTask {
+        try await Task.sleep(for: .seconds(10))
+        throw KeychainProbeFailure("The XPC write did not reach the active Shared observer")
+      }
+      defer { group.cancelAll() }
+      try await group.next()
+    }
+    #expect(storedValue == "service-value")
+    #expect(observationChanged.value)
   }
 
   private func accessGroup() throws -> String {

@@ -368,11 +368,11 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
       reportIssue(
         """
         A Shared secure app storage key (\(key.debugDescription)) contains an invalid character \
-        (\(character.debugDescription)) for key-value observation. External updates will be \
-        observed less efficiently and accurately via notification center, instead.
+        (\(character.debugDescription)) for key-value observation. The notification fallback \
+        may not observe changes made by another process.
 
-        Please reformat this key by removing invalid characters in order to ensure efficient, \
-        cross-process observation.
+        Please reformat this key by removing invalid characters to enable cross-process \
+        key-value observation.
 
         If you cannot control the format of this key and would like to silence this warning, \
         override the '\\.appStorageKeyFormatWarningEnabled' dependency at the entry point of \

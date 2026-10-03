@@ -1,44 +1,54 @@
 # Secure app storage
 
-Understand how `secureAppStorage` stores and observes a shared value.
+Persist and observe encrypted values in UserDefaults.
 
 ## Overview
 
-`secureAppStorage` follows Sharing's app-storage API for booleans, numbers, strings, arrays of
-strings, URLs, data, dates, `Codable` values, and integer- or string-backed `RawRepresentable`
-values. Optional values are supported. Non-optional shared values need an initial value, while an
-optional value can start as `nil`.
+For most encrypted shared values, start with `secureAppStorage`. After configuring an encryption
+client in <doc:GettingStarted>, use it like a Sharing app-storage key:
 
-See <doc:GettingStarted> to configure a default encryption client and create your first key.
-For a small value shared with an app extension, consider <doc:KeychainStorage> instead.
+```swift
+@Shared(.secureAppStorage("privateNote")) var privateNote: String?
 
-### Stored format
+$privateNote.withLock { $0 = "A private note" }
+```
 
-The strategy JSON-encodes the value and stores the crypto client's output as `Data` in UserDefaults
-under `secure_` followed by the logical key. The built-in Keychain client uses AES-GCM and keeps
-its symmetric key in Keychain. It authenticates the logical key as associated data, so its
-ciphertext cannot simply be copied to another key. Custom clients must provide their own
-encryption and authentication guarantees.
+An optional value starts as `nil`. Give a non-optional value an initial value:
 
-An absent stored value loads the initial value without writing anything. A successful save persists
-the new value, or removes the stored value for `nil`. The built-in client creates its encryption key
-on the first non-`nil` save if needed, but a load never creates a missing encryption key.
+```swift
+@Shared(.secureAppStorage("launchCount")) var launchCount = 0
+```
+
+The key supports the same value types as Sharing's `appStorage`, including `Codable` and
+`RawRepresentable` types.
+
+### What gets stored
+
+The value is JSON-encoded, encrypted, and stored as `Data` under `secure_` followed by the key
+name. The built-in AES-GCM client keeps its encryption key in Keychain and authenticates the key
+name, so ciphertext cannot be moved to another key.
+
+Loading a missing value returns the initial value without writing it. With the built-in Keychain
+client, the first non-`nil` save creates an encryption key if needed; a load never does. A
+successful save of `nil` removes the stored value.
 
 ### Observation
 
-For keys without `.` and not starting with `@`, the strategy observes UserDefaults changes with
-key-value observation. Keys containing `.` or starting with `@` use a notification fallback and
-produce a runtime issue unless `appStorageKeyFormatWarningEnabled` is disabled. Prefer keys without
-those formats for more precise observation.
+An active `@Shared` value observes changes to its UserDefaults key. Sharing's
+[app-storage key-name caveat][app-storage-key-names] also applies here. After an unlock
+notification, the key retries a failed load without rewriting the stored value. See
+<doc:AvailabilityAndFailures> for failure and recovery behavior.
 
-An active shared value also retries loading when the system announces that protected data has
-become available. This is a retry signal, not a check of the Keychain item's accessibility. The
-reload does not rewrite the value. See <doc:AvailabilityAndFailures> for failure and recovery rules.
+### Choose a store
 
-### Configuration and identity
+By default, the key uses Sharing's `defaultAppStorage` dependency. Pass `store:` for an individual
+key's UserDefaults store and `crypto:` for a different encryption client. For an App Group, keep
+the shared store on the keys that need it rather than changing the default for every key; see
+<doc:SharingAcrossProcesses>.
 
-The default UserDefaults store is Sharing's `defaultAppStorage` dependency. Pass `store:` to choose
-a store for an individual key, or `crypto:` to override the default encryption client. The logical
-key, store, and crypto client together identify an in-memory Sharing reference. This identity does
-not migrate data. See [type-safe keys](<doc:TypeSafeSecureKeys>) to reuse a configuration and
-<doc:ChangingSecureStorage> before changing it.
+The key name, store, and crypto client form the Sharing reference's identity. Define stable
+[type-safe keys](<doc:TypeSafeSecureKeys>) for these choices, and see
+<doc:ChangingSecureStorage> before changing them. For a small, targeted secret that should live
+directly in Keychain without `UserDefaults` observation, see <doc:KeychainStorage>.
+
+[app-storage-key-names]: https://github.com/pointfreeco/swift-sharing/blob/main/Sources/Sharing/Documentation.docc/Extensions/AppStorageKey.md#special-characters-in-keys

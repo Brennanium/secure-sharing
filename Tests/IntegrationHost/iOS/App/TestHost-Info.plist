@@ -31,5 +31,7 @@
   </array>
   <key>SecureSharingTestAccessGroup</key>
   <string>$(AppIdentifierPrefix)com.brennanium.SecureSharingIOSTestHost</string>
+  <key>SecureSharingTestAppGroup</key>
+  <string>group.com.brennanium.SecureSharingIOSTestHost</string>
 </dict>
 </plist>

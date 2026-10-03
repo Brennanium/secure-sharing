@@ -8,39 +8,10 @@ Storage identifiers are easy to mistype when they appear throughout an app. A
 [type-safe key](https://swiftpackageindex.com/pointfreeco/swift-sharing/main/documentation/sharing/typesafekeys)
 collects those details in one place and fixes the value's Swift type.
 
-### Keychain storage
-
-Extend `SharedKey` to give a Keychain item a name:
-
-```swift
-import SecureSharing
-import Sharing
-
-extension SharedKey where Self == KeychainStorageKey<String?> {
-  static var accessToken: Self {
-    .keychainStorage(
-      "accessToken",
-      service: "com.example.my-app.tokens",
-      accessGroup: "TEAMID.com.example.shared",
-      accessibility: .afterFirstUnlockThisDeviceOnly
-    )
-  }
-}
-```
-
-Use that name wherever the token is needed:
-
-```swift
-@Shared(.accessToken) var accessToken: String?
-```
-
-Share the definition with any extension that needs the token, and give both targets the same
-Keychain access-group entitlement. See <doc:KeychainStorage> for more about cross-process access.
-
 ### Encrypted app storage
 
-Name the app's encryption client once and install it at startup. Keys can then use that default
-without repeating the configuration:
+For most encrypted shared values, name the app's encryption client once and install it at
+startup. Keys can then use that default without repeating the configuration:
 
 ```swift
 import Dependencies
@@ -82,6 +53,39 @@ encryption client:
 ```
 
 A key that needs a different client can pass `crypto:` explicitly.
+For an App Group suite, pass a shared static `UserDefaults` instance through `store:` on the
+type-safe key rather than changing the app-wide `defaultAppStorage`; see
+<doc:SharingAcrossProcesses>.
+
+### Direct Keychain storage
+
+For a small, targeted secret that does not need `UserDefaults` observation, give its Keychain item
+a type-safe name:
+
+```swift
+import SecureSharing
+import Sharing
+
+extension SharedKey where Self == KeychainStorageKey<String?> {
+  static var recoveryCode: Self {
+    .keychainStorage(
+      "recoveryCode",
+      service: "com.example.my-app.recovery",
+      accessGroup: "TEAMID.com.example.shared",
+      accessibility: .afterFirstUnlockThisDeviceOnly
+    )
+  }
+}
+```
+
+Use that name wherever the value is needed:
+
+```swift
+@Shared(.recoveryCode) var recoveryCode: String?
+```
+
+Share the definition with any extension that needs the item, and give both targets the same
+Keychain access-group entitlement. See <doc:KeychainStorage> for cross-process reload behavior.
 
 ### Defaults
 

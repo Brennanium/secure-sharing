@@ -5,7 +5,7 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>$(DEVELOPMENT_LANGUAGE)</string>
   <key>CFBundleDisplayName</key>
-  <string>SecureSharing Keychain Probe</string>
+  <string>SecureSharing Storage Probe</string>
   <key>CFBundleExecutable</key>
   <string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key>
@@ -22,6 +22,8 @@
   <string>1</string>
   <key>SecureSharingTestAccessGroup</key>
   <string>$(AppIdentifierPrefix)com.brennanium.SecureSharingIOSTestHost</string>
+  <key>SecureSharingTestAppGroup</key>
+  <string>group.com.brennanium.SecureSharingIOSTestHost</string>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionAttributes</key>

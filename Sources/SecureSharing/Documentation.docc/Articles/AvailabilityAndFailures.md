@@ -4,26 +4,29 @@ Handle Keychain failures without replacing stored data.
 
 ## Overview
 
-Both strategies distinguish an absent value from an unreadable one. Neither writes an initial
-value during load. A failed load blocks subsequent saves on that shared key until a successful
-reload, protecting a stored value from an in-memory default or stale value.
+Both strategies distinguish an absent value from an unreadable one:
+
+- **Absent:** Load the initial value without writing it.
+- **Unreadable:** Fail the load and block saves on that shared key.
+- **Available again:** Reload successfully before saving.
+
+This prevents an in-memory default or stale value from replacing unreadable stored data.
 
 ### Keychain availability
 
-With the built-in crypto client, `secureAppStorage` attempts the actual Keychain operation when
-decrypting an existing value or encrypting a new one. An inaccessible key fails the operation; it
-never falls back to plaintext.
-When no ciphertext exists, a load returns the initial value without accessing Keychain or writing
-to UserDefaults. Saves of `nil` remove an existing value only after it has been decrypted.
+With the built-in crypto client, `secureAppStorage` accesses Keychain when decrypting an existing
+value or encrypting a new one. An inaccessible key fails the operation; it never falls back to
+plaintext. When no ciphertext exists, a load returns the initial value without accessing
+Keychain. Saving `nil` removes an existing value only after decrypting it.
 
 Loads and saves complete synchronously and Keychain access can block the calling thread, including
 the main thread. The projected shared value's throwing methods expose failures, but do not move
 the underlying Keychain call to a background thread.
 
 An active `secureAppStorage` subscription retries loading when protected data becomes available.
-This notification often accompanies an unlock, but does not prove that a particular Keychain item
-can be read. The retry leaves ciphertext untouched. In an app extension or other context without
-this notification, call `$value.load()` when access may have changed.
+The notification is a retry signal, not proof that a particular Keychain item is readable. The
+retry leaves ciphertext untouched. In an extension or other context without this notification,
+call `$value.load()` when access may have changed.
 
 `keychainStorage` also attempts the actual Keychain operation, but does not subscribe to this
 notification. Its default `afterFirstUnlockThisDeviceOnly` accessibility does not allow access

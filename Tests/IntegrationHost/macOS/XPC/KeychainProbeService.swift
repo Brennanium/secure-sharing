@@ -28,6 +28,39 @@ private final class KeychainProbe: NSObject, KeychainProbeProtocol {
       reply(true, processID, nil)
     }
   }
+
+  func replaceSecureAppStorageValue(
+    key: String,
+    suiteName: String,
+    account: String,
+    accessGroup: String,
+    expected: String,
+    replacement: String,
+    reply: @escaping (Bool, NSNumber, NSString?) -> Void
+  ) {
+    let processID = NSNumber(value: ProcessInfo.processInfo.processIdentifier)
+    guard let store = UserDefaults(suiteName: suiteName) else {
+      reply(false, processID, "Could not open the shared UserDefaults suite")
+      return
+    }
+    @Shared(.secureAppStorage(
+      key,
+      store: store,
+      crypto: .keychain(service: service, account: account, accessGroup: accessGroup)
+    )) var storedValue: String?
+    guard storedValue == expected else {
+      let message = $storedValue.loadError.map(String.init(describing:))
+        ?? "The XPC service could not decrypt the host's value."
+      reply(false, processID, message as NSString)
+      return
+    }
+    $storedValue.withLock { $0 = replacement }
+    if let error = $storedValue.saveError {
+      reply(false, processID, String(describing: error) as NSString)
+    } else {
+      reply(true, processID, nil)
+    }
+  }
 }
 
 private final class KeychainProbeListener: NSObject, NSXPCListenerDelegate {

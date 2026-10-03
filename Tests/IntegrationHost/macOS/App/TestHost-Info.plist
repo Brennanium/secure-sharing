@@ -24,5 +24,7 @@
   <true/>
   <key>SecureSharingTestAccessGroup</key>
   <string>$(AppIdentifierPrefix)com.brennanium.SecureSharingTestHost</string>
+  <key>SecureSharingTestAppGroup</key>
+  <string>$(AppIdentifierPrefix)com.brennanium.SecureSharingTestHost.shared</string>
 </dict>
 </plist>

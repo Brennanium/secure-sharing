@@ -1,47 +1,48 @@
 # Changing secure storage configuration
 
-Plan migrations when changing a Keychain item or encrypted app-storage configuration.
+Plan migrations when a key starts pointing at different stored data.
 
 ## Overview
 
-SecureSharing does not migrate values when you change a Keychain item identity, app-storage key,
-`UserDefaults` store, or encryption client. The app that owns the data must migrate it.
+Changing a key's storage configuration does not move or re-encrypt its value. For example, these
+two keys read different `UserDefaults` entries:
 
-### Keychain items
+```swift
+@Shared(.secureAppStorage("privateNote")) var privateNote: String?
+@Shared(.secureAppStorage("archivedNote")) var archivedNote: String?
+```
+
+The first uses `secure_privateNote`; the second uses `secure_archivedNote`. Copying ciphertext
+between them will not work with the built-in AES-GCM client because it authenticates the logical
+key name.
+
+### What changes an item
 
 `keychainStorage` identifies an item by service, account, and access group. Changing any of these
-selects a different item; it does not move the old one. Changing accessibility does not update an
-existing item, and accessibility is not part of the shared key's identity. Changing a value's JSON
-representation also requires a migration. Read with the old configuration, write and verify the
-new item, then delete the old one if appropriate. The app must have entitlements for both access
-groups during such a migration.
+selects a different item. The app needs entitlements for both access groups while migrating
+between them.
 
-### Separate encrypted app-storage identity from stored bytes
+For `secureAppStorage`, changing the key name or `UserDefaults` store changes where the ciphertext
+lives. Changing the crypto format or the Keychain service, account, or access group can make that
+ciphertext unreadable. Changing a value's JSON representation can also require a migration.
 
-Sharing uses the logical key, UserDefaults store, and crypto-client identity to identify an
-in-memory reference. Distinct crypto identities do not share a reference. This identity is not
-persisted and does not re-encrypt or move stored bytes.
+Changing Keychain accessibility does **not** update an existing item; the new policy applies only
+when an item is created. Accessibility is not part of `keychainStorage`'s shared-key identity.
 
-Two keys with distinct crypto identities can still point to the same UserDefaults entry. Their
-references are separate, but one client's ciphertext may be unreadable to the other. Do not use
-both configurations against the same stored key without a migration plan.
+### Sharing identity is not storage migration
 
-### Know what changes the stored data
+Sharing identifies an in-memory `secureAppStorage` reference by its logical key, store, and
+crypto-client identity. Two crypto clients can therefore create separate references to the
+**same** UserDefaults entry. That does not re-encrypt the stored bytes: one client may be unable
+to read what the other wrote.
 
-`secureAppStorage("privateNote")` stores ciphertext as `Data` at the UserDefaults key
-`secure_privateNote`. The logical key is passed to the crypto client as associated data. The
-built-in AES-GCM client authenticates it, so renaming the key changes both the storage location and
-the authenticated data. Copying its ciphertext to a new key is not enough.
+### Move data deliberately
 
-Changing the UserDefaults store moves the location. Changing the crypto format or the Keychain
-service, account, or access group may make existing ciphertext undecryptable. Changing Keychain
-accessibility alone does not update an existing item; it only controls newly created items.
+1. Read with the old configuration.
+2. Write under a new key or store, then load it back to verify the result.
+3. Only then remove the old value.
 
-### Migrate deliberately
-
-Read the value with the old configuration, write it under a new key or store, and verify the new
-value before removing the old one. A save validates any existing ciphertext with its own crypto
-client, so switching clients on the same UserDefaults entry cannot overwrite that entry directly.
-If the old value cannot be decrypted or decoded, preserve it rather than writing an initial value.
-Migration from another library's format belongs in the app and may require a custom
-``SecureCryptoClient``.
+Do not switch crypto clients on an existing `secureAppStorage` entry: a save first validates its
+existing ciphertext, so the new client may be unable to overwrite it. If the old value cannot be
+read, preserve it rather than writing an initial value. Migration from another library's format
+belongs in the app and may require a custom ``SecureCryptoClient``.

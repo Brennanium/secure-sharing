@@ -4,24 +4,34 @@ import UIKit
 
 final class ActionViewController: UIViewController {
   private let statusLabel = UILabel()
+  private let secureStatusLabel = UILabel()
 
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .systemBackground
     statusLabel.numberOfLines = 0
     statusLabel.text = "Extension process: \(ProcessInfo.processInfo.processIdentifier)"
+    secureStatusLabel.numberOfLines = 0
+    secureStatusLabel.text = "Encrypted value: Not checked"
 
     let replaceButton = UIButton(type: .system)
     replaceButton.configuration = .filled()
     replaceButton.configuration?.title = "Replace with extension-value"
     replaceButton.addTarget(self, action: #selector(replaceValue), for: .touchUpInside)
 
+    let replaceSecureButton = UIButton(type: .system)
+    replaceSecureButton.configuration = .filled()
+    replaceSecureButton.configuration?.title = "Replace encrypted value"
+    replaceSecureButton.addTarget(self, action: #selector(replaceSecureValue), for: .touchUpInside)
+
     let doneButton = UIButton(type: .system)
     doneButton.configuration = .tinted()
     doneButton.configuration?.title = "Done"
     doneButton.addTarget(self, action: #selector(done), for: .touchUpInside)
 
-    let stack = UIStackView(arrangedSubviews: [statusLabel, replaceButton, doneButton])
+    let stack = UIStackView(arrangedSubviews: [
+      statusLabel, replaceButton, secureStatusLabel, replaceSecureButton, doneButton,
+    ])
     stack.axis = .vertical
     stack.spacing = 20
     stack.translatesAutoresizingMaskIntoConstraints = false
@@ -32,6 +42,16 @@ final class ActionViewController: UIViewController {
       stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
     ])
     Task { await readValue() }
+    readSecureValue()
+  }
+
+  private func readSecureValue() {
+    @Shared(.sharedNote) var sharedNote: String?
+    if let error = $sharedNote.loadError {
+      secureStatusLabel.text = "Encrypted load failed: \(error)"
+    } else {
+      secureStatusLabel.text = "Encrypted read: \(sharedNote ?? "No value")"
+    }
   }
 
   private func readValue() async {
@@ -54,6 +74,18 @@ final class ActionViewController: UIViewController {
 
   @objc private func replaceValue() {
     Task { await replaceStoredValue() }
+  }
+
+  @objc private func replaceSecureValue() {
+    @Shared(.sharedNote) var sharedNote: String?
+    guard sharedNote == KeychainFixture.appValue else {
+      secureStatusLabel.text = $sharedNote.loadError.map { "Encrypted load failed: \($0)" }
+        ?? "Expected app-value, found \(sharedNote ?? "No value")"
+      return
+    }
+    $sharedNote.withLock { $0 = KeychainFixture.extensionValue }
+    secureStatusLabel.text = $sharedNote.saveError.map { "Encrypted save failed: \($0)" }
+      ?? "Replaced encrypted value"
   }
 
   private func replaceStoredValue() async {

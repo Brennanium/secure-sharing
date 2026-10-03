@@ -3,7 +3,7 @@
 Open [Examples.xcodeproj](Examples.xcodeproj) and run the CaseStudies scheme on an iPhone or iOS Simulator running iOS 17 or later. Select your development team if Xcode requests one.
 
 - **Encrypted note** stores ciphertext in UserDefaults and the encryption key in Keychain.
-- **Authenticated refresh** signs in to DummyJSON with its public demo account, saves the access token in Keychain, and uses it for an authenticated request. The foreground button and system background callback save separate non-secret check records with their execution context.
+- **Authenticated refresh** signs in to DummyJSON with its public demo account, saves the session in encrypted app storage, and uses its token for an authenticated request. The foreground button and system background callback save separate non-secret check records with their execution context.
 
 ## Try a background refresh
 
@@ -19,4 +19,6 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 
 This debugger command is for development only and does not belong in shipped code. The callback record proves which handler ran; its observed app state may differ during debugger simulation. The demo account is public and must not be used for real data.
 
-Storage identifiers and defaults live in `CaseStudyKeys.swift`. The authenticated refresh screen uses an observable model, and its tests run from the CaseStudies scheme with in-memory storage and stubbed network calls.
+Storage identifiers and defaults live in `CaseStudyKeys.swift`. The authenticated refresh screen uses an observable model, and its tests run from the CaseStudies scheme with in-memory storage and stubbed network calls. This app's background task runs in the app process; the signed integration host tests actual app-extension sharing.
+
+If you ran an earlier checkout, sign in again: this example does not migrate its previous direct-Keychain session.

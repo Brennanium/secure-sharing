@@ -200,6 +200,10 @@
           "product-name": "ConcurrencyExtras",
           "build-phase": { "build-phase": "frameworks" },
         },
+        {
+          "product-name": "Sharing",
+          "build-phase": { "build-phase": "frameworks" },
+        },
       ],
       "build-settings": {
         "BUNDLE_LOADER": "$(TEST_HOST)",
@@ -291,6 +295,7 @@
       "build-phases": [ "compile-sources", "frameworks", "resources" ],
       "package-product-members": [
         { "product-name": "SecureSharing", "build-phase": { "build-phase": "frameworks" } },
+        { "product-name": "Sharing", "build-phase": { "build-phase": "frameworks" } },
       ],
       "build-settings": {
         "BUNDLE_LOADER": "$(TEST_HOST)",
