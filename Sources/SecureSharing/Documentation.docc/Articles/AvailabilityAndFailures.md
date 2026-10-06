@@ -70,6 +70,10 @@ Both strategies may also return `keychainFailure(status:)`. The built-in AES-GCM
 authentication failure to `decryptionFailed`; it does not wrap errors thrown while loading its
 Keychain key. Do not assume every Keychain failure means protected data is unavailable.
 
+Keychain errors include the Security framework's message and numeric `OSStatus` in their
+description, including when passed to `reportIssue(error)`. Use the error case or
+``SecureStorageError/keychainStatus`` for decisions, not the localized message.
+
 ### Preserve stored values
 
 Before replacing an existing value, both strategies read and decode it; `secureAppStorage` also
