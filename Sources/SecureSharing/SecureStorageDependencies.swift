@@ -320,19 +320,8 @@ private final class LiveSecureKeyStore: Sendable {
   }
 
   private func readKeyData() throws -> Data? {
-    try validateKeychainConfiguration(
+    let query = try genericPasswordReadQuery(
       service: id.service, account: id.account, accessGroup: id.accessGroup)
-    var query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: id.service,
-      kSecAttrAccount as String: id.account,
-      kSecUseDataProtectionKeychain as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-      kSecReturnData as String: true,
-    ]
-    if let accessGroup = id.accessGroup {
-      query[kSecAttrAccessGroup as String] = accessGroup
-    }
 
     var dataRef: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &dataRef)
@@ -351,19 +340,9 @@ private final class LiveSecureKeyStore: Sendable {
   }
 
   private func storeKeyData(_ keyData: Data) throws {
-    try validateKeychainConfiguration(
-      service: id.service, account: id.account, accessGroup: id.accessGroup)
-    var query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: id.service,
-      kSecAttrAccount as String: id.account,
-      kSecUseDataProtectionKeychain as String: true,
-      kSecAttrAccessible as String: accessibility.keychainValue,
-      kSecValueData as String: keyData,
-    ]
-    if let accessGroup = id.accessGroup {
-      query[kSecAttrAccessGroup as String] = accessGroup
-    }
+    let query = try genericPasswordAddAttributes(
+      service: id.service, account: id.account, accessGroup: id.accessGroup,
+      accessibility: accessibility, data: keyData)
 
     let status = SecItemAdd(query as CFDictionary, nil)
     switch status {

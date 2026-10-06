@@ -13,4 +13,8 @@ final class Locked<Value>: @unchecked Sendable {
     defer { lock.unlock() }
     return operation(&value)
   }
+
+  func setValue(_ value: Value) {
+    withLock { $0 = value }
+  }
 }

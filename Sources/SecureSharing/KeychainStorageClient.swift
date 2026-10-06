@@ -67,9 +67,8 @@ extension KeychainStorageClient: DependencyKey {
 
   private static let liveClient = Self(
     read: { item in
-      var query = try keychainQuery(for: item)
-      query[kSecMatchLimit as String] = kSecMatchLimitOne
-      query[kSecReturnData as String] = true
+      let query = try genericPasswordReadQuery(
+        service: item.service, account: item.account, accessGroup: item.accessGroup)
       var result: CFTypeRef?
       let status = SecItemCopyMatching(query as CFDictionary, &result)
       switch status {
@@ -83,16 +82,17 @@ extension KeychainStorageClient: DependencyKey {
       }
     },
     write: { data, item in
-      let query = try keychainQuery(for: item)
+      let query = try genericPasswordQuery(
+        service: item.service, account: item.account, accessGroup: item.accessGroup)
       let update = [kSecValueData as String: data]
       let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
       switch status {
       case errSecSuccess:
         return
       case errSecItemNotFound:
-        var attributes = query
-        attributes[kSecAttrAccessible as String] = item.accessibility.keychainValue
-        attributes[kSecValueData as String] = data
+        let attributes = try genericPasswordAddAttributes(
+          service: item.service, account: item.account, accessGroup: item.accessGroup,
+          accessibility: item.accessibility, data: data)
         let addStatus = SecItemAdd(attributes as CFDictionary, nil)
         switch addStatus {
         case errSecSuccess:
@@ -108,7 +108,8 @@ extension KeychainStorageClient: DependencyKey {
       }
     },
     delete: { item in
-      let query = try keychainQuery(for: item)
+      let query = try genericPasswordQuery(
+        service: item.service, account: item.account, accessGroup: item.accessGroup)
       let status = SecItemDelete(query as CFDictionary)
       guard status == errSecSuccess || status == errSecItemNotFound else {
         throw keychainStorageError(status)
@@ -138,16 +139,42 @@ extension DependencyValues {
   }
 }
 
-private func keychainQuery(for item: KeychainStorageItem) throws -> [String: Any] {
-  try item.validate()
+func genericPasswordQuery(
+  service: String, account: String, accessGroup: String?
+) throws -> [String: Any] {
+  try validateKeychainConfiguration(
+    service: service, account: account, accessGroup: accessGroup)
   var query: [String: Any] = [
     kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: item.service,
-    kSecAttrAccount as String: item.account,
+    kSecAttrService as String: service,
+    kSecAttrAccount as String: account,
     kSecUseDataProtectionKeychain as String: true,
   ]
-  query[kSecAttrAccessGroup as String] = item.accessGroup
+  if let accessGroup {
+    query[kSecAttrAccessGroup as String] = accessGroup
+  }
   return query
+}
+
+func genericPasswordReadQuery(
+  service: String, account: String, accessGroup: String?
+) throws -> [String: Any] {
+  var query = try genericPasswordQuery(
+    service: service, account: account, accessGroup: accessGroup)
+  query[kSecMatchLimit as String] = kSecMatchLimitOne
+  query[kSecReturnData as String] = true
+  return query
+}
+
+func genericPasswordAddAttributes(
+  service: String, account: String, accessGroup: String?,
+  accessibility: SecureKeyStoreAccessibility, data: Data
+) throws -> [String: Any] {
+  var attributes = try genericPasswordQuery(
+    service: service, account: account, accessGroup: accessGroup)
+  attributes[kSecAttrAccessible as String] = accessibility.keychainValue
+  attributes[kSecValueData as String] = data
+  return attributes
 }
 
 func validateKeychainConfiguration(

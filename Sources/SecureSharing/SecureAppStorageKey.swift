@@ -427,7 +427,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
             let isInitialValue = isEqual(newValue, context.initialValue) ?? true
             guard !valuesAreEqual || isInitialValue else { return }
 
-            previousValue.withLock { $0 = newValue }
+            previousValue.setValue(newValue)
             subscriber.yield(with: .success(newValue))
           case .failure(let error):
             subscriber.yield(with: .failure(error))
@@ -450,7 +450,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
     }
 
     return SharedSubscription {
-      isActive.withLock { $0 = false }
+      isActive.setValue(false)
       removeObservers.withLock {
         $0.forEach { remove in remove() }
       }
