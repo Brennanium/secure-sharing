@@ -499,7 +499,7 @@ struct SecureAppStorageKeyTests {
   }
 
   @Test func invalidKeyWarning() async {
-    await expectReportsIssue {
+    func checkDotKey() async {
       @Shared(.secureAppStorage("co.pointfree.isEnabled")) var isEnabled = false
       let (updates, yieldUpdate) = AsyncStream.makeStream(of: Bool.self)
       var iterator = updates.makeAsyncIterator()
@@ -510,13 +510,23 @@ struct SecureAppStorageKeyTests {
       store.set(encrypted, forKey: secureStoreKey("co.pointfree.isEnabled"))
       _ = await iterator.next()
       #expect(isEnabled)
+    }
+
+    #if compiler(>=6.4)
+    await expectReportsIssue {
+      await checkDotKey()
     } matching: {
       $0.description.contains(
         #"A Shared secure app storage key ("co.pointfree.isEnabled") contains an invalid character (".")"#
       )
     }
+    #else
+    await withExpectedIssue {
+      await checkDotKey()
+    }
+    #endif
 
-    await expectReportsIssue {
+    func checkAtKey() async {
       @Shared(.secureAppStorage("@count")) var count = 0
       let (updates, yieldUpdate) = AsyncStream.makeStream(of: Int.self)
       var iterator = updates.makeAsyncIterator()
@@ -526,11 +536,21 @@ struct SecureAppStorageKeyTests {
       store.set(encrypted, forKey: secureStoreKey("@count"))
       _ = await iterator.next()
       #expect(count == 42)
+    }
+
+    #if compiler(>=6.4)
+    await expectReportsIssue {
+      await checkAtKey()
     } matching: {
       $0.description.contains(
         #"A Shared secure app storage key ("@count") contains an invalid character ("@")"#
       )
     }
+    #else
+    await withExpectedIssue {
+      await checkAtKey()
+    }
+    #endif
   }
 
   @Test(.dependency(\.appStorageKeyFormatWarningEnabled, false))

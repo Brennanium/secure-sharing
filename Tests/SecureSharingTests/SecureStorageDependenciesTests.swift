@@ -10,14 +10,24 @@ import Testing
 struct SecureStorageDependenciesTests {
   @Test("Missing live crypto reports a configuration issue", .dependency(\.context, .live))
   func missingLiveCryptoReportsIssue() {
-    expectReportsIssue {
+    func check() {
       @Dependency(\.secureAppStorageCrypto) var crypto
       #expect(throws: SecureStorageError.cryptoNotConfigured) {
         try crypto.encrypt(Data(), Data())
       }
+    }
+
+    #if compiler(>=6.4)
+    expectReportsIssue {
+      check()
     } matching: {
       $0.description.contains("Secure app storage has no encryption client.")
     }
+    #else
+    withExpectedIssue {
+      check()
+    }
+    #endif
   }
 
   @Test("AES-GCM uses its key store")
