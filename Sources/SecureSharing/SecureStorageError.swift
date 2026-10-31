@@ -84,3 +84,33 @@ private func keychainErrorDescription(_ status: OSStatus) -> String {
   }
   return "Keychain operation failed (OSStatus \(status))"
 }
+
+extension SecureStorageError {
+  /// Whether the stored value can never be read again, however long the app waits.
+  ///
+  /// This is the case for ciphertext that cannot be decrypted or decoded, a value of the wrong
+  /// type, and an encryption key that no longer exists, for example after a restore to a new
+  /// device. Discarding the value is the only way to save to the key again.
+  ///
+  /// Transient Keychain failures, such as a locked device, are never unrecoverable. Neither are
+  /// configuration errors, which discarding data cannot fix.
+  public var isUnrecoverable: Bool {
+    switch self {
+    case .keyUnavailable, .invalidStoredValue, .decodingFailed, .decryptionFailed:
+      true
+    default:
+      false
+    }
+  }
+
+  /// Whether the failure can resolve by itself, such as a Keychain that is locked until the
+  /// device is unlocked. Retry these; do not discard data because of them.
+  public var isTransient: Bool {
+    switch self {
+    case .keychainInteractionNotAllowed, .keychainFailure:
+      true
+    default:
+      false
+    }
+  }
+}

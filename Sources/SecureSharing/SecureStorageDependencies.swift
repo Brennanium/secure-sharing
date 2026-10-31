@@ -223,6 +223,50 @@ extension SecureKeyStoreClient {
   }
 }
 
+/// What a `secureAppStorage` key does when its stored value can never be read again.
+///
+/// By default a key reports the error and refuses to save over the unreadable value, because
+/// replacing it silently could hide data loss. An app that prefers to start over, for example
+/// after a restore to a new device where the encryption key no longer exists, can opt in with
+/// ``discardUnrecoverableValues(onDiscard:)``. Only errors where
+/// ``SecureStorageError/isUnrecoverable`` is true cause a discard; a locked Keychain never does.
+public struct SecureStorageRecovery: Sendable {
+  enum Policy: Sendable {
+    case fail
+    case discard(onDiscard: (@Sendable (_ key: String, _ error: SecureStorageError) -> Void)?)
+  }
+
+  let policy: Policy
+
+  /// Report unrecoverable values and block saves to them. This is the default.
+  public static let failOnUnrecoverableValue = Self(policy: .fail)
+
+  /// Remove an unrecoverable value and treat the key as empty, so it can be saved to again.
+  ///
+  /// - Parameter onDiscard: Called with the unprefixed key and the error that made the value
+  ///   unrecoverable, for example to log it. It is called after the value was removed.
+  public static func discardUnrecoverableValues(
+    onDiscard: (@Sendable (_ key: String, _ error: SecureStorageError) -> Void)? = nil
+  ) -> Self {
+    Self(policy: .discard(onDiscard: onDiscard))
+  }
+}
+
+private enum SecureStorageRecoveryKey: DependencyKey {
+  static var liveValue: SecureStorageRecovery { .failOnUnrecoverableValue }
+  static var testValue: SecureStorageRecovery { .failOnUnrecoverableValue }
+}
+
+extension DependencyValues {
+  /// How `secureAppStorage` keys handle values that can never be read again.
+  ///
+  /// Set this in `prepareDependencies` before creating secure keys.
+  public var secureAppStorageRecovery: SecureStorageRecovery {
+    get { self[SecureStorageRecoveryKey.self] }
+    set { self[SecureStorageRecoveryKey.self] = newValue }
+  }
+}
+
 private enum SecureAppStorageCryptoKey: DependencyKey {
   static var liveValue: SecureCryptoClient {
     if shouldReportUnimplemented {

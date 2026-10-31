@@ -410,6 +410,82 @@ struct SecureAppStorageKeyTests {
     #expect(store.writeCount.value == 0)
   }
 
+  @Test("Errors are classified as unrecoverable or transient")
+  func errorClassification() {
+    let unrecoverable: [SecureStorageError] = [
+      .keyUnavailable, .invalidStoredValue, .decodingFailed, .decryptionFailed,
+    ]
+    let transient: [SecureStorageError] = [
+      .keychainInteractionNotAllowed, .keychainFailure(status: -25291),
+    ]
+    let neither: [SecureStorageError] = [
+      .saveBlockedUntilSuccessfulLoad, .cryptoNotConfigured, .keychainMissingEntitlement,
+      .invalidKeychainConfiguration(field: .service), .encodingFailed, .encryptionFailed,
+    ]
+    #expect(unrecoverable.allSatisfy { $0.isUnrecoverable && !$0.isTransient })
+    #expect(transient.allSatisfy { !$0.isUnrecoverable && $0.isTransient })
+    #expect(neither.allSatisfy { !$0.isUnrecoverable && !$0.isTransient })
+  }
+
+  @Test("Opting in discards an unrecoverable value so the key can be saved to again")
+  func discardPolicyRecoversUnrecoverableValue() async throws {
+    let store = UserDefaults.inMemory
+    store.set(Data([1, 2, 3]), forKey: secureStoreKey("restored"))
+    let discarded = LockIsolated<[String]>([])
+
+    try await withDependencies {
+      $0.secureAppStorageRecovery = .discardUnrecoverableValues { key, error in
+        #expect(error == .decryptionFailed)
+        discarded.withValue { $0.append(key) }
+      }
+    } operation: {
+      @Shared(.secureAppStorage("restored", store: store)) var count: Int? = nil
+
+      try await $count.load()
+      #expect(count == nil)
+      #expect(discarded.value == ["restored"])
+      #expect(store.object(forKey: secureStoreKey("restored")) == nil)
+
+      $count.withLock { $0 = 7 }
+      try await $count.save()
+      try await $count.load()
+      #expect(count == 7)
+    }
+  }
+
+  @Test("Opting in never discards a value because the Keychain is temporarily unavailable")
+  func discardPolicyKeepsValueWhileKeychainIsLocked() async throws {
+    let store = UserDefaults.inMemory
+    let available = LockIsolated(true)
+    let crypto = availabilityControlledCrypto(available: available)
+    let ciphertext = try encryptedPayload(42, key: "locked", crypto: crypto)
+    store.set(ciphertext, forKey: secureStoreKey("locked"))
+    available.setValue(false)
+
+    try await withDependencies {
+      $0.secureAppStorageCrypto = crypto
+      $0.secureAppStorageRecovery = .discardUnrecoverableValues { _, _ in
+        Issue.record("A transient failure must not discard data")
+      }
+    } operation: {
+      @Shared(.secureAppStorage("locked", store: store)) var count = 0
+      await #expect(throws: SecureStorageError.keychainInteractionNotAllowed) {
+        try await $count.load()
+      }
+      #expect(store.data(forKey: secureStoreKey("locked")) == ciphertext)
+    }
+  }
+
+  @Test("The default policy still refuses to replace an unrecoverable value")
+  func defaultPolicyKeepsUnrecoverableValue() async {
+    let ciphertext = Data([4, 5, 6])
+    store.set(ciphertext, forKey: secureStoreKey("kept"))
+    @Shared(.secureAppStorage("kept")) var count = 0
+
+    await #expect(throws: SecureStorageError.decryptionFailed) { try await $count.load() }
+    #expect(store.data(forKey: secureStoreKey("kept")) == ciphertext)
+  }
+
   @Test("A failed initial load blocks saves until the shared value is reloaded")
   func failedLoadRequiresReloadBeforeSave() async throws {
     let store = UserDefaults.inMemory

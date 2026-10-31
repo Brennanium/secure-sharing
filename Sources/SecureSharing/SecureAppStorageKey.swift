@@ -182,6 +182,7 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   private let secureKey: String
   private let store: UncheckedSendable<UserDefaults>
   private let crypto: SecureCryptoClient
+  private let recovery: SecureStorageRecovery
   private let storageLock = NSRecursiveLock()
   private let saveProtectionState = Locked(false)
 
@@ -197,12 +198,14 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   ) {
     @Dependency(\.defaultAppStorage) var defaultStore
     @Dependency(\.secureAppStorageCrypto) var defaultCrypto
+    @Dependency(\.secureAppStorageRecovery) var recovery
 
     self.lookup = lookup
     self.key = key
     self.secureKey = securePrefix + key
     self.store = UncheckedSendable(store ?? defaultStore)
     self.crypto = crypto ?? defaultCrypto
+    self.recovery = recovery
   }
 
   fileprivate init(_ key: String, store: UserDefaults?, crypto: SecureCryptoClient?)
@@ -466,8 +469,20 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
   }
 
   private func loadResult(default initialValue: Value?) -> Result<Value?, any Error> {
-    withStorageLock {
-      let result = Result { try readStoredValue(default: initialValue) }
+    var discarded: (SecureStorageError, @Sendable (String, SecureStorageError) -> Void)?
+    let result = withStorageLock {
+      var result = Result { try readStoredValue(default: initialValue) }
+      if case .failure(let error) = result,
+        let storageError = error as? SecureStorageError,
+        storageError.isUnrecoverable,
+        case .discard(let onDiscard) = recovery.policy
+      {
+        SharedSecureAppStorageLocals.$isSetting.withValue(true) {
+          store.wrappedValue.removeObject(forKey: secureKey)
+        }
+        result = .success(initialValue)
+        discarded = (storageError, onDiscard ?? { _, _ in })
+      }
       saveProtectionState.withLock { state in
         switch result {
         case .success: state = false
@@ -476,6 +491,10 @@ public struct SecureAppStorageKey<Value: Sendable>: SharedKey {
       }
       return result
     }
+    if let (error, onDiscard) = discarded {
+      onDiscard(key, error)
+    }
+    return result
   }
 
   private func withStorageLock<R>(_ operation: () -> R) -> R {
